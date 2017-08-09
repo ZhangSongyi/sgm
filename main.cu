@@ -56,7 +56,7 @@ bool directory_exists(const char* dir) {
 	    ok = true;
 	}
 	return ok;
-#endif,
+#endif
 }
 
 void disparity_errors(cv::Mat estimation, const char* gt_file, int *n, int *n_err) {
