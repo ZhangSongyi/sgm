@@ -23,7 +23,7 @@
 #include <Windows.h>
 #include <shlwapi.h>
 #include <windef.h>
-#define PATH_MAX 260 
+#define PATH_MAX MAX_PATH 
 #else
 #include <sys/time.h>
 #include <linux/limits.h>
@@ -47,7 +47,7 @@
 
 bool directory_exists(const char* dir) {
 #ifdef WIN32
-    return PathFileExists(dir);
+    return PathFileExists(dir) == TRUE;
 #else
 	DIR* d = opendir(dir);
 	bool ok = false;
@@ -172,7 +172,7 @@ int main(int argc, char *argv[]) {
 		sprintf(right_file, "%s/%s/%s", directory, right_dir, ep->d_name);
 		sprintf(dis_file, "%s/%s/%s", directory, disparity_dir, ep->d_name);
 		sprintf(gt_file, "%s/%s/%s", directory, gt_dir, ep->d_name);
-		int gt_len = strlen(gt_file);
+		size_t gt_len = strlen(gt_file);
 
 		cv::Mat h_im0 = cv::imread(left_file);
 		if(!h_im0.data) {
@@ -240,6 +240,7 @@ int main(int argc, char *argv[]) {
 	double mean = std::accumulate(times.begin(), times.end(), 0.0) / times.size();
 	if(has_gt) {
 		printf("%f\n", (float) n_err/n);
+        std::cout << "It took an average of " << mean << " miliseconds, " << 1000.0f / mean << " fps" << std::endl;
 	} else {
 		std::cout << "It took an average of " << mean << " miliseconds, " << 1000.0f/mean << " fps" << std::endl;
 	}
