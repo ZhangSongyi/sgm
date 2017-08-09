@@ -19,8 +19,18 @@
 **/
 
 #include <iostream>
-#include <numeric>
+#ifdef WIN32
+#include <Windows.h>
+#include <shlwapi.h>
+#include <windef.h>
+#define PATH_MAX 260 
+#else
 #include <sys/time.h>
+#include <linux/limits.h>
+#endif
+
+#include <dirent.h>
+#include <numeric>
 #include <vector>
 #include <stdlib.h>
 #include <typeinfo>
@@ -31,13 +41,14 @@
 #include <ctime>
 #include <sys/types.h>
 #include <stdint.h>
-#include <linux/limits.h>
-#include <dirent.h>
 #include <iostream>
 #include <fstream>
 #include "disparity_method.h"
 
 bool directory_exists(const char* dir) {
+#ifdef WIN32
+    return PathFileExists(dir);
+#else
 	DIR* d = opendir(dir);
 	bool ok = false;
 	if(d) {
@@ -45,6 +56,7 @@ bool directory_exists(const char* dir) {
 	    ok = true;
 	}
 	return ok;
+#endif,
 }
 
 void disparity_errors(cv::Mat estimation, const char* gt_file, int *n, int *n_err) {
@@ -114,6 +126,7 @@ int main(int argc, char *argv[]) {
 	uint8_t p1, p2;
 	p1 = atoi(argv[2]);
 	p2 = atoi(argv[3]);
+
 
 	DIR *dp;
 	struct dirent *ep;
@@ -186,8 +199,8 @@ int main(int argc, char *argv[]) {
 			return EXIT_FAILURE;
 		}
 		if(h_im0.rows % 4 != 0 || h_im0.cols % 4 != 0) {
-                        std::cerr << "Due to implementation limitations image width and height must be a divisible by 4" << std::endl;
-                        return EXIT_FAILURE;
+            std::cerr << "Due to implementation limitations image width and height must be a divisible by 4" << std::endl;
+            return EXIT_FAILURE;
 		}
 
 #if LOG

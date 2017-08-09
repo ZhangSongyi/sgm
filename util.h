@@ -137,23 +137,23 @@ __inline__ __device__ int shfl_xor_32(int scalarValue, const int n) {
 	#endif
 }
 
-__device__ __forceinline__ uint32_t ld_gbl_ca(const __restrict__ uint32_t *addr) {
+__device__ __forceinline__ uint32_t ld_gbl_ca(const uint32_t* __restrict__ addr) {
 	uint32_t return_value;
 	asm("ld.global.ca.u32 %0, [%1];" : "=r"(return_value) : "l"(addr));
 	return return_value;
 }
 
-__device__ __forceinline__ uint32_t ld_gbl_cs(const __restrict__ uint32_t *addr) {
+__device__ __forceinline__ uint32_t ld_gbl_cs(const uint32_t* __restrict__ addr) {
 	uint32_t return_value;
 	asm("ld.global.cs.u32 %0, [%1];" : "=r"(return_value) : "l"(addr));
 	return return_value;
 }
 
-__device__ __forceinline__ void st_gbl_wt(const __restrict__ uint32_t *addr, const uint32_t value) {
+__device__ __forceinline__ void st_gbl_wt(const uint32_t* __restrict__ addr, const uint32_t value) {
 	asm("st.global.wt.u32 [%0], %1;" :: "l"(addr), "r"(value));
 }
 
-__device__ __forceinline__ void st_gbl_cs(const __restrict__ uint32_t *addr, const uint32_t value) {
+__device__ __forceinline__ void st_gbl_cs(const uint32_t* __restrict__ addr, const uint32_t value) {
 	asm("st.global.cs.u32 [%0], %1;" :: "l"(addr), "r"(value));
 }
 
@@ -208,7 +208,7 @@ __device__ __forceinline__ void print_uchars(const char* str, const uint32_t s) 
 
 template<class T>
 __device__ __forceinline__ int popcount(T n) {
-#if CSCT or CSCT_RECOMPUTE
+#if CSCT || CSCT_RECOMPUTE
 	return __popc(n);
 #else
 	return __popcll(n);

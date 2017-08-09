@@ -59,8 +59,8 @@ __device__ __forceinline__ void CostAggregationDiagonalGenericIndexesIncrement(i
 
 template<class T, int iter_type, int min_type, int dir_type, bool first_iteration, bool recompute, bool join_dispcomputation>
 __device__ __forceinline__ void CostAggregationGenericIteration(int index, int index_im, int col, uint32_t *old_values, int *old_value1, int *old_value2, int *old_value3, int *old_value4, uint32_t *min_cost, uint32_t *min_cost_p2, uint8_t* d_cost, uint8_t *d_L, const int p1_vector, const int p2_vector, const T *_d_transform0, const T *_d_transform1, const int lane, const int MAX_PAD, const int dis, T *rp0, T *rp1, T *rp2, T *rp3, uint8_t* __restrict__ d_disparity, const uint8_t* d_L0, const uint8_t* d_L1, const uint8_t* d_L2, const uint8_t* d_L3, const uint8_t* d_L4, const uint8_t* d_L5, const uint8_t* d_L6) {
-	const T __restrict__ *d_transform0 = _d_transform0;
-	const T __restrict__ *d_transform1 = _d_transform1;
+	const T* __restrict__ d_transform0 = _d_transform0;
+	const T* __restrict__ d_transform1 = _d_transform1;
 	uint32_t costs, next_dis, prev_dis;
 
 	if(iter_type == ITER_NORMAL) {
