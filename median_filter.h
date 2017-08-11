@@ -22,6 +22,9 @@
 #define MEDIAN_FILTER_H_
 
 #include <stdint.h>
+#include "cuda.h"
+#include "cuda_runtime.h"
+#include "device_launch_parameters.h"
 
 __global__ void MedianFilter3x3(const uint8_t* __restrict__ d_input, uint8_t* __restrict__ d_out, const uint32_t rows, const uint32_t cols);
 

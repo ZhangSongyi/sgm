@@ -24,6 +24,9 @@
 #include "configuration.h"
 #include "util.h"
 #include <stdint.h>
+#include "cuda.h"
+#include "cuda_runtime.h"
+#include "device_launch_parameters.h"
 
 __global__ void HammingDistanceCostKernel (  const cost_t *d_transform0, const cost_t *d_transform1,
 		uint8_t *d_cost, const int rows, const int cols );
