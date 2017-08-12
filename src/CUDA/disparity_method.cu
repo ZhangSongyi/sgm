@@ -168,7 +168,7 @@ extern "C" cv::Mat compute_disparity_method(cv::Mat left, cv::Mat right, float *
 	return disparity;
 }
 
-extern "C" static void free_memory() {
+extern "C" void free_memory() {
 	CUDA_CHECK_RETURN(cudaFree(d_im0));
 	CUDA_CHECK_RETURN(cudaFree(d_im1));
 	CUDA_CHECK_RETURN(cudaFree(d_transform0));

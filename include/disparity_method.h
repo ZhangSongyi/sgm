@@ -27,6 +27,6 @@
 extern "C" void init_disparity_method(const uint8_t _p1, const uint8_t _p2);
 extern "C" cv::Mat compute_disparity_method(cv::Mat left, cv::Mat right, float *elapsed_time_ms, const char* directory, const char* fname);
 extern "C" void finish_disparity_method();
-extern "C" static void free_memory();
+extern "C" void free_memory();
 
 #endif /* DISPARITY_METHOD_H_ */
