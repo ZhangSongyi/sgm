@@ -46,7 +46,9 @@ static uint8_t *d_L3;
 static uint8_t *d_L4;
 static uint8_t *d_L5;
 static uint8_t *d_L6;
+#if PATH_AGGREGATION == 8
 static uint8_t *d_L7;
+#endif
 static uint8_t p1, p2;
 static bool first_alloc;
 static uint32_t cols, rows, size, size_cube_l;
