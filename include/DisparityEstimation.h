@@ -18,14 +18,23 @@
 
 **/
 
-#ifndef DISPARITY_METHOD_H_
-#define DISPARITY_METHOD_H_
+#ifndef DISPARITY_ESTIMATION_H_
+#define DISPARITY_ESTIMATION_H_
 
 #include <opencv2/opencv.hpp>
-#include "configuration.h"
+#include <memory>
 
-extern "C" void init_disparity_method(const uint8_t _p1, const uint8_t _p2);
-extern "C" cv::Mat compute_disparity_method(cv::Mat left, cv::Mat right, float *elapsed_time_ms, const char* directory, const char* fname);
-extern "C" void finish_disparity_method();
+class DisparityEstimationImpl;
+class DisparityEstimation
+{
+public:
+    DisparityEstimation();
+    ~DisparityEstimation();
+    void Initialize(const uint8_t p1, const uint8_t p2);
+    cv::Mat Compute(cv::Mat left, cv::Mat right, float *elapsed_time_ms);
+    void Finish();
+private:
+    std::auto_ptr<DisparityEstimationImpl> m_impl;
+};
 
 #endif /* DISPARITY_METHOD_H_ */

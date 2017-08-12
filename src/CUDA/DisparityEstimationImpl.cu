@@ -18,7 +18,7 @@
 
 **/
 
-#include "disparity_method.h"
+#include "DisparityEstimation.h"
 #include <stdint.h>
 #include <opencv2/opencv.hpp>
 #include "util.hpp"
@@ -29,50 +29,64 @@
 #include "CostAggregationKernels.hpp"
 #include "debug.h"
 
-static cudaStream_t stream1, stream2, stream3;//, stream4, stream5, stream6, stream7, stream8;
-static uint8_t *d_im0;
-static uint8_t *d_im1;
-static cost_t *d_transform0;
-static cost_t *d_transform1;
-static uint8_t *d_cost;
-static uint8_t *d_disparity;
-static uint8_t *d_disparity_filtered_uchar;
-static uint8_t *h_disparity;
-static uint16_t *d_S;
-static uint8_t *d_L0;
-static uint8_t *d_L1;
-static uint8_t *d_L2;
-static uint8_t *d_L3;
-static uint8_t *d_L4;
-static uint8_t *d_L5;
-static uint8_t *d_L6;
+class DisparityEstimationImpl
+{
+public:
+    DisparityEstimationImpl() {}
+    ~DisparityEstimationImpl() {}
+    void Initialize(const uint8_t p1, const uint8_t p2);
+    cv::Mat Compute(cv::Mat left, cv::Mat right, float *elapsed_time_ms);
+    void Finish();
+
+private: /*CUDA Host Pointer*/
+    uint8_t *h_disparity;
+    static uint8_t p1, p2;
+    static bool first_alloc;
+    static uint32_t cols, rows, size, size_cube_l;
+
+private: /*CUDA Device Pointer*/
+    cudaStream_t stream1, stream2, stream3;//, stream4, stream5, stream6, stream7, stream8;
+    uint8_t *d_im0;
+    uint8_t *d_im1;
+    cost_t *d_transform0;
+    cost_t *d_transform1;
+    uint8_t *d_cost;
+    uint8_t *d_disparity;
+    uint8_t *d_disparity_filtered_uchar;
+    uint16_t *d_S;
+    uint8_t *d_L0;
+    uint8_t *d_L1;
+    uint8_t *d_L2;
+    uint8_t *d_L3;
+    uint8_t *d_L4;
+    uint8_t *d_L5;
+    uint8_t *d_L6;
 #if PATH_AGGREGATION == 8
-static uint8_t *d_L7;
+    static uint8_t *d_L7;
 #endif
-static uint8_t p1, p2;
-static bool first_alloc;
-static uint32_t cols, rows, size, size_cube_l;
 
-void malloc_memory();
-void free_memory();
+private:
+    void malloc_memory();
+    void free_memory();
+};
 
-extern "C" void init_disparity_method(const uint8_t _p1, const uint8_t _p2) {
-	// We are not using shared memory, use L1
-	//CUDA_CHECK_RETURN(cudaDeviceSetCacheConfig(cudaFuncCachePreferL1));
-	//CUDA_CHECK_RETURN(cudaDeviceSetCacheConfig(cudaFuncCachePreferShared));
+void DisparityEstimationImpl::Initialize(const uint8_t p1, const uint8_t p2) {
+    // We are not using shared memory, use L1
+    //CUDA_CHECK_RETURN(cudaDeviceSetCacheConfig(cudaFuncCachePreferL1));
+    //CUDA_CHECK_RETURN(cudaDeviceSetCacheConfig(cudaFuncCachePreferShared));
 
-	// Create streams
-	CUDA_CHECK_RETURN(cudaStreamCreate(&stream1));
-	CUDA_CHECK_RETURN(cudaStreamCreate(&stream2));
-	CUDA_CHECK_RETURN(cudaStreamCreate(&stream3));
-	first_alloc = true;
-	p1 = _p1;
-	p2 = _p2;
+    // Create streams
+    CUDA_CHECK_RETURN(cudaStreamCreate(&stream1));
+    CUDA_CHECK_RETURN(cudaStreamCreate(&stream2));
+    CUDA_CHECK_RETURN(cudaStreamCreate(&stream3));
+    first_alloc = true;
+    DisparityEstimationImpl::p1 = p1;
+    DisparityEstimationImpl::p2 = p2;
     rows = 0;
     cols = 0;
 }
 
-extern "C" cv::Mat compute_disparity_method(cv::Mat left, cv::Mat right, float *elapsed_time_ms, const char* directory, const char* fname) {
+cv::Mat DisparityEstimationImpl::Compute(cv::Mat left, cv::Mat right, float *elapsed_time_ms) {
 	if(cols != left.cols || rows != left.rows) {
 		debug_log("WARNING: cols or rows are different");
 		if(!first_alloc) {
@@ -148,7 +162,7 @@ extern "C" cv::Mat compute_disparity_method(cv::Mat left, cv::Mat right, float *
 	return disparity;
 }
 
-extern "C" void finish_disparity_method() {
+void DisparityEstimationImpl::Finish() {
 	if(!first_alloc) {
 		free_memory();
 		CUDA_CHECK_RETURN(cudaStreamDestroy(stream1));
@@ -157,7 +171,7 @@ extern "C" void finish_disparity_method() {
 	}
 }
 
-void malloc_memory() {
+void DisparityEstimationImpl::malloc_memory() {
     CUDA_CHECK_RETURN(cudaMalloc((void **)&d_im0, sizeof(uint8_t)*size));
     CUDA_CHECK_RETURN(cudaMalloc((void **)&d_im1, sizeof(uint8_t)*size));
     CUDA_CHECK_RETURN(cudaMalloc((void **)&d_transform0, sizeof(cost_t)*size));
@@ -177,7 +191,8 @@ void malloc_memory() {
     CUDA_CHECK_RETURN(cudaMalloc((void **)&d_disparity_filtered_uchar, sizeof(uint8_t)*size));
     h_disparity = new uint8_t[size];
 }
-void free_memory() {
+
+void DisparityEstimationImpl::free_memory() {
 	CUDA_CHECK_RETURN(cudaFree(d_im0));
 	CUDA_CHECK_RETURN(cudaFree(d_im1));
 	CUDA_CHECK_RETURN(cudaFree(d_transform0));
@@ -197,4 +212,19 @@ void free_memory() {
 	CUDA_CHECK_RETURN(cudaFree(d_cost));
 
 	delete[] h_disparity;
+}
+
+DisparityEstimation::DisparityEstimation() : 
+    m_impl(new DisparityEstimationImpl()) {}
+
+void DisparityEstimation::Initialize(const uint8_t p1, const uint8_t p2) {
+    m_impl->Initialize(p1, p2);
+}
+
+cv::Mat DisparityEstimation::Compute(cv::Mat left, cv::Mat right, float *elapsed_time_ms) {
+    return m_impl->Compute(left, right, elapsed_time_ms);
+}
+
+void DisparityEstimation::Finish() {
+    m_impl->Finish();
 }
