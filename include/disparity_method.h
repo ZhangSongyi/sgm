@@ -18,33 +18,15 @@
 
 **/
 
-#ifndef CONFIGURATION_H_
-#define CONFIGURATION_H_
+#ifndef DISPARITY_METHOD_H_
+#define DISPARITY_METHOD_H_
 
-#include <stdint.h>
+#include <opencv2/opencv.hpp>
+#include "configuration.h"
 
-#define LOG						false
-#define WRITE_FILES				true
+extern "C" void init_disparity_method(const uint8_t _p1, const uint8_t _p2);
+extern "C" cv::Mat compute_disparity_method(cv::Mat left, cv::Mat right, float *elapsed_time_ms, const char* directory, const char* fname);
+extern "C" void finish_disparity_method();
+extern "C" void free_memory();
 
-#define PATH_AGGREGATION	4
-#define	MAX_DISPARITY		128
-#define CENSUS_WIDTH		9
-#define CENSUS_HEIGHT		7
-
-#define OCCLUDED_PIXEL		128
-#define MISMATCHED_PIXEL	129
-
-#define TOP				(CENSUS_HEIGHT-1)/2
-#define LEFT			(CENSUS_WIDTH-1)/2
-
-typedef uint32_t cost_t;
-#define MAX_COST		30
-
-#define BLOCK_SIZE					256
-#define COSTAGG_BLOCKSIZE			GPU_THREADS_PER_BLOCK
-#define COSTAGG_BLOCKSIZE_HORIZ		GPU_THREADS_PER_BLOCK
-
-#define ABS_THRESH 3.0
-#define REL_THRESH 0.05
-
-#endif /* CONFIGURATION_H_ */
+#endif /* DISPARITY_METHOD_H_ */

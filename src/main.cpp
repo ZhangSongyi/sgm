@@ -18,6 +18,8 @@
 
 **/
 
+
+
 #include <iostream>
 #ifdef WIN32
 #include <Windows.h>
@@ -38,11 +40,14 @@
 
 #include <numeric>
 #include <stdlib.h>
+#include <stdint.h>
 #include <ctime>
 #include <sys/types.h>
 #include <stdint.h>
 #include <iostream>
 #include <fstream>
+#include "configuration.h"
+#include "debug.h"
 #include "disparity_method.h"
 
 bool directory_exists(const char* dir) {

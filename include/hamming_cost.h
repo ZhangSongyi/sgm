@@ -18,24 +18,17 @@
 
 **/
 
-#ifndef DEBUG_H_
-#define DEBUG_H_
+#ifndef HAMMING_COST_H_
+#define HAMMING_COST_H_
 
-#include <iostream>
-#include <stdio.h>
 #include "configuration.h"
+#include "util.hpp"
+#include <stdint.h>
+#include "cuda.h"
+#include "cuda_runtime.h"
+#include "device_launch_parameters.h"
 
-template<typename T>
-void write_file(const char* fname, const T *data, const int size) {
-	FILE* fp = fopen(fname, "wb");
-	if (fp == NULL) {
-		std::cerr << "Couldn't write transform file" << std::endl;
-		exit(-1);
-	}
-	fwrite (data, sizeof(T), size, fp);
-	fclose(fp);
-}
+__global__ void HammingDistanceCostKernel (  const cost_t *d_transform0, const cost_t *d_transform1,
+		uint8_t *d_cost, const int rows, const int cols );
 
-void debug_log(const char *str);
-
-#endif /* DEBUG_H_ */
+#endif /* HAMMING_COST_H_ */
