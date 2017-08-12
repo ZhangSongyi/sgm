@@ -28,14 +28,14 @@
 #include <nvToolsExt.h>
 #include <opencv2/opencv.hpp>
 #include "configuration.h"
-#include "StixelsKernels.h"
+#include "StixelsKernels.cuh"
 #include "util.hpp"
 #include "cuda.h"
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
 
-#ifndef STIXELS_HPP_
-#define STIXELS_HPP_
+#ifndef STIXELS_H_
+#define STIXELS_H_
 
 #define PIFLOAT 3.1416f
 
@@ -227,4 +227,4 @@ private:
 
 
 
-#endif /* STIXELS_HPP_ */
+#endif /* STIXELS_H_ */

@@ -18,7 +18,7 @@
 
 **/
 
-#include "Stixels.hpp"
+#include "Stixels.h"
 
 Stixels::Stixels() {
 }

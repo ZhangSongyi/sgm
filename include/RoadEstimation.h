@@ -18,12 +18,12 @@
 
 **/
 
-#ifndef _ROADESTIMATION_
-#define _ROADESTIMATION_
+#ifndef ROAD_ESTIMATION_H_
+#define ROAD_ESTIMATION_H_
 
 #include <vector>
 #include <opencv2/opencv.hpp>
-#include "RoadEstimationKernels.h"
+#include "RoadEstimationKernels.cuh"
 #include "util.hpp"
 #include "configuration.h"
 #include "cuda.h"
@@ -90,4 +90,4 @@ private:
 	float					m_focal;			///< Stereo camera focal length
 	float					m_slope;
 };
-#endif // _ROADESTIMATION_
+#endif // ROAD_ESTIMATION_H_

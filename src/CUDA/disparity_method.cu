@@ -23,10 +23,10 @@
 #include <opencv2/opencv.hpp>
 #include "util.hpp"
 #include "configuration.h"
-#include "costs.h"
-#include "hamming_cost.h"
-#include "median_filter.h"
-#include "cost_aggregation.h"
+#include "CenterSymmetricCensusKernel.cuh"
+#include "HammingDistanceCostKernel.cuh"
+#include "MedianFilterKernels.cuh"
+#include "CostAggregationKernels.hpp"
 #include "debug.h"
 
 static cudaStream_t stream1, stream2, stream3;//, stream4, stream5, stream6, stream7, stream8;
@@ -52,6 +52,9 @@ static uint8_t *d_L7;
 static uint8_t p1, p2;
 static bool first_alloc;
 static uint32_t cols, rows, size, size_cube_l;
+
+void malloc_memory();
+void free_memory();
 
 extern "C" void init_disparity_method(const uint8_t _p1, const uint8_t _p2) {
 	// We are not using shared memory, use L1
@@ -81,32 +84,7 @@ extern "C" cv::Mat compute_disparity_method(cv::Mat left, cv::Mat right, float *
 		rows = left.rows;
 		size = rows*cols;
 		size_cube_l = size*MAX_DISPARITY;
-		CUDA_CHECK_RETURN(cudaMalloc((void **)&d_transform0, sizeof(cost_t)*size));
-
-		CUDA_CHECK_RETURN(cudaMalloc((void **)&d_transform1, sizeof(cost_t)*size));
-
-		int size_cube = size*MAX_DISPARITY;
-		CUDA_CHECK_RETURN(cudaMalloc((void **)&d_cost, sizeof(uint8_t)*size_cube));
-
-		CUDA_CHECK_RETURN(cudaMalloc((void **)&d_im0, sizeof(uint8_t)*size));
-
-		CUDA_CHECK_RETURN(cudaMalloc((void **)&d_im1, sizeof(uint8_t)*size));
-
-		CUDA_CHECK_RETURN(cudaMalloc((void **)&d_S, sizeof(uint16_t)*size_cube_l));
-		CUDA_CHECK_RETURN(cudaMalloc((void **)&d_L0, sizeof(uint8_t)*size_cube_l));
-		CUDA_CHECK_RETURN(cudaMalloc((void **)&d_L1, sizeof(uint8_t)*size_cube_l));
-		CUDA_CHECK_RETURN(cudaMalloc((void **)&d_L2, sizeof(uint8_t)*size_cube_l));
-		CUDA_CHECK_RETURN(cudaMalloc((void **)&d_L3, sizeof(uint8_t)*size_cube_l));
-#if PATH_AGGREGATION == 8
-		CUDA_CHECK_RETURN(cudaMalloc((void **)&d_L4, sizeof(uint8_t)*size_cube_l));
-		CUDA_CHECK_RETURN(cudaMalloc((void **)&d_L5, sizeof(uint8_t)*size_cube_l));
-		CUDA_CHECK_RETURN(cudaMalloc((void **)&d_L6, sizeof(uint8_t)*size_cube_l));
-		CUDA_CHECK_RETURN(cudaMalloc((void **)&d_L7, sizeof(uint8_t)*size_cube_l));
-#endif
-
-		CUDA_CHECK_RETURN(cudaMalloc((void **)&d_disparity, sizeof(uint8_t)*size));
-		CUDA_CHECK_RETURN(cudaMalloc((void **)&d_disparity_filtered_uchar, sizeof(uint8_t)*size));
-		h_disparity = new uint8_t[size];
+        malloc_memory();
 	}
 	debug_log("Copying images to the GPU");
 	CUDA_CHECK_RETURN(cudaMemcpyAsync(d_im0, left.ptr<uint8_t>(), sizeof(uint8_t)*size, cudaMemcpyHostToDevice, stream1));
@@ -170,7 +148,36 @@ extern "C" cv::Mat compute_disparity_method(cv::Mat left, cv::Mat right, float *
 	return disparity;
 }
 
-extern "C" void free_memory() {
+extern "C" void finish_disparity_method() {
+	if(!first_alloc) {
+		free_memory();
+		CUDA_CHECK_RETURN(cudaStreamDestroy(stream1));
+		CUDA_CHECK_RETURN(cudaStreamDestroy(stream2));
+		CUDA_CHECK_RETURN(cudaStreamDestroy(stream3));
+	}
+}
+
+void malloc_memory() {
+    CUDA_CHECK_RETURN(cudaMalloc((void **)&d_im0, sizeof(uint8_t)*size));
+    CUDA_CHECK_RETURN(cudaMalloc((void **)&d_im1, sizeof(uint8_t)*size));
+    CUDA_CHECK_RETURN(cudaMalloc((void **)&d_transform0, sizeof(cost_t)*size));
+    CUDA_CHECK_RETURN(cudaMalloc((void **)&d_transform1, sizeof(cost_t)*size));
+    CUDA_CHECK_RETURN(cudaMalloc((void **)&d_L0, sizeof(uint8_t)*size_cube_l));
+    CUDA_CHECK_RETURN(cudaMalloc((void **)&d_L1, sizeof(uint8_t)*size_cube_l));
+    CUDA_CHECK_RETURN(cudaMalloc((void **)&d_L2, sizeof(uint8_t)*size_cube_l));
+    CUDA_CHECK_RETURN(cudaMalloc((void **)&d_L3, sizeof(uint8_t)*size_cube_l));
+#if PATH_AGGREGATION == 8
+    CUDA_CHECK_RETURN(cudaMalloc((void **)&d_L4, sizeof(uint8_t)*size_cube_l));
+    CUDA_CHECK_RETURN(cudaMalloc((void **)&d_L5, sizeof(uint8_t)*size_cube_l));
+    CUDA_CHECK_RETURN(cudaMalloc((void **)&d_L6, sizeof(uint8_t)*size_cube_l));
+    CUDA_CHECK_RETURN(cudaMalloc((void **)&d_L7, sizeof(uint8_t)*size_cube_l));
+#endif
+    CUDA_CHECK_RETURN(cudaMalloc((void **)&d_cost, sizeof(uint8_t)*size_cube_l));
+    CUDA_CHECK_RETURN(cudaMalloc((void **)&d_disparity, sizeof(uint8_t)*size));
+    CUDA_CHECK_RETURN(cudaMalloc((void **)&d_disparity_filtered_uchar, sizeof(uint8_t)*size));
+    h_disparity = new uint8_t[size];
+}
+void free_memory() {
 	CUDA_CHECK_RETURN(cudaFree(d_im0));
 	CUDA_CHECK_RETURN(cudaFree(d_im1));
 	CUDA_CHECK_RETURN(cudaFree(d_transform0));
@@ -190,13 +197,4 @@ extern "C" void free_memory() {
 	CUDA_CHECK_RETURN(cudaFree(d_cost));
 
 	delete[] h_disparity;
-}
-
-extern "C" void finish_disparity_method() {
-	if(!first_alloc) {
-		free_memory();
-		CUDA_CHECK_RETURN(cudaStreamDestroy(stream1));
-		CUDA_CHECK_RETURN(cudaStreamDestroy(stream2));
-		CUDA_CHECK_RETURN(cudaStreamDestroy(stream3));
-	}
 }

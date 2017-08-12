@@ -18,7 +18,7 @@
 
 **/
 
-#include "RoadEstimationKernels.h"
+#include "RoadEstimationKernels.cuh"
 
 __global__ void ComputeHistogram(pixel_t* __restrict__ d_disparity, int* __restrict__ d_vDisp, const int rows,
 		const int cols, const int max_dis) {

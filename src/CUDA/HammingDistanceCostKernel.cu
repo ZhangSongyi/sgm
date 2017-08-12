@@ -18,7 +18,7 @@
 
 **/
 
-#include "hamming_cost.h"
+#include "HammingDistanceCostKernel.cuh"
 
 //d_transform0, d_transform1, d_cost, rows, cols
 __global__ void
