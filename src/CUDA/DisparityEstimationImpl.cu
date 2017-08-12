@@ -40,9 +40,9 @@ public:
 
 private: /*CUDA Host Pointer*/
     uint8_t *h_disparity;
-    static uint8_t p1, p2;
-    static bool first_alloc;
-    static uint32_t cols, rows, size, size_cube_l;
+    uint8_t p1, p2;
+    bool first_alloc;
+    uint32_t cols, rows, size, size_cube_l;
 
 private: /*CUDA Device Pointer*/
     cudaStream_t stream1, stream2, stream3;//, stream4, stream5, stream6, stream7, stream8;
@@ -62,7 +62,7 @@ private: /*CUDA Device Pointer*/
     uint8_t *d_L5;
     uint8_t *d_L6;
 #if PATH_AGGREGATION == 8
-    static uint8_t *d_L7;
+    uint8_t *d_L7;
 #endif
 
 private:
@@ -80,8 +80,8 @@ void DisparityEstimationImpl::Initialize(const uint8_t p1, const uint8_t p2) {
     CUDA_CHECK_RETURN(cudaStreamCreate(&stream2));
     CUDA_CHECK_RETURN(cudaStreamCreate(&stream3));
     first_alloc = true;
-    DisparityEstimationImpl::p1 = p1;
-    DisparityEstimationImpl::p2 = p2;
+    this->p1 = p1;
+    this->p2 = p2;
     rows = 0;
     cols = 0;
 }
@@ -216,6 +216,8 @@ void DisparityEstimationImpl::free_memory() {
 
 DisparityEstimation::DisparityEstimation() : 
     m_impl(new DisparityEstimationImpl()) {}
+
+DisparityEstimation::~DisparityEstimation() {}
 
 void DisparityEstimation::Initialize(const uint8_t p1, const uint8_t p2) {
     m_impl->Initialize(p1, p2);
