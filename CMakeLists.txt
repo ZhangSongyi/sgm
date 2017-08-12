@@ -20,6 +20,12 @@ project(sgm)
 find_package( OpenCV REQUIRED )
 find_package( CUDA REQUIRED )
 
+include_directories(
+    include
+    ${CUDA_INCLUDE_DIRS}
+    $ENV{NVTOOLSEXT_PATH}/include
+)
+
 set(
     CUDA_NVCC_FLAGS
     ${CUDA_NVCC_FLAGS};
@@ -32,8 +38,9 @@ set(
     -gencode=arch=compute_61,code=sm_61
     )
 
-cuda_add_executable(
-    sgm
-    main.cu median_filter.cu hamming_cost.cu disparity_method.cu debug.cu costs.cu)
+file(GLOB SRC_FILES src/*.cpp)
+file(GLOB CUDA_FILES src/CUDA/*.cu)
 
-target_link_libraries( sgm ${OpenCV_LIBS} )
+cuda_add_executable(sgm ${CUDA_FILES} ${SRC_FILES})
+
+target_link_libraries(sgm  ${OpenCV_LIBS} ${CUDA_LIBRARIES})

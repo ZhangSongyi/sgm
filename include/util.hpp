@@ -18,8 +18,8 @@
 
 **/
 
-#ifndef UTIL_H_
-#define UTIL_H_
+#ifndef UTIL_HPP_
+#define UTIL_HPP_
 
 #include <iostream>
 #include <dirent.h>
@@ -140,10 +140,14 @@ __inline__ __device__ int shfl_xor_32(int scalarValue, const int n) {
 	#endif
 }
 
+__host__ __device__ __forceinline__ int divUp(int total, int grain) {
+    return (total + grain - 1) / grain;
+}
+
 __device__ __forceinline__ uint32_t ld_gbl_ca(const uint32_t* __restrict__ addr) {
-	uint32_t return_value;
-	asm("ld.global.ca.u32 %0, [%1];" : "=r"(return_value) : "l"(addr));
-	return return_value;
+    uint32_t return_value;
+    asm("ld.global.ca.u32 %0, [%1];" : "=r"(return_value) : "l"(addr));
+    return return_value;
 }
 
 __device__ __forceinline__ uint32_t ld_gbl_cs(const uint32_t* __restrict__ addr) {

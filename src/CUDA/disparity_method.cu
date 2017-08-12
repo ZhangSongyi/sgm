@@ -19,6 +19,15 @@
 **/
 
 #include "disparity_method.h"
+#include <stdint.h>
+#include <opencv2/opencv.hpp>
+#include "util.hpp"
+#include "configuration.h"
+#include "costs.h"
+#include "hamming_cost.h"
+#include "median_filter.h"
+#include "cost_aggregation.h"
+#include "debug.h"
 
 static cudaStream_t stream1, stream2, stream3;//, stream4, stream5, stream6, stream7, stream8;
 static uint8_t *d_im0;
@@ -42,7 +51,7 @@ static uint8_t p1, p2;
 static bool first_alloc;
 static uint32_t cols, rows, size, size_cube_l;
 
-void init_disparity_method(const uint8_t _p1, const uint8_t _p2) {
+extern "C" void init_disparity_method(const uint8_t _p1, const uint8_t _p2) {
 	// We are not using shared memory, use L1
 	//CUDA_CHECK_RETURN(cudaDeviceSetCacheConfig(cudaFuncCachePreferL1));
 	//CUDA_CHECK_RETURN(cudaDeviceSetCacheConfig(cudaFuncCachePreferShared));
@@ -58,7 +67,7 @@ void init_disparity_method(const uint8_t _p1, const uint8_t _p2) {
     cols = 0;
 }
 
-cv::Mat compute_disparity_method(cv::Mat left, cv::Mat right, float *elapsed_time_ms, const char* directory, const char* fname) {
+extern "C" cv::Mat compute_disparity_method(cv::Mat left, cv::Mat right, float *elapsed_time_ms, const char* directory, const char* fname) {
 	if(cols != left.cols || rows != left.rows) {
 		debug_log("WARNING: cols or rows are different");
 		if(!first_alloc) {
@@ -159,7 +168,7 @@ cv::Mat compute_disparity_method(cv::Mat left, cv::Mat right, float *elapsed_tim
 	return disparity;
 }
 
-static void free_memory() {
+extern "C" static void free_memory() {
 	CUDA_CHECK_RETURN(cudaFree(d_im0));
 	CUDA_CHECK_RETURN(cudaFree(d_im1));
 	CUDA_CHECK_RETURN(cudaFree(d_transform0));
@@ -181,7 +190,7 @@ static void free_memory() {
 	delete[] h_disparity;
 }
 
-void finish_disparity_method() {
+extern "C" void finish_disparity_method() {
 	if(!first_alloc) {
 		free_memory();
 		CUDA_CHECK_RETURN(cudaStreamDestroy(stream1));

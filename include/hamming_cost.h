@@ -18,33 +18,17 @@
 
 **/
 
-#ifndef CONFIGURATION_H_
-#define CONFIGURATION_H_
+#ifndef HAMMING_COST_H_
+#define HAMMING_COST_H_
 
+#include "configuration.h"
+#include "util.hpp"
 #include <stdint.h>
+#include "cuda.h"
+#include "cuda_runtime.h"
+#include "device_launch_parameters.h"
 
-#define LOG						false
-#define WRITE_FILES				true
+__global__ void HammingDistanceCostKernel (  const cost_t *d_transform0, const cost_t *d_transform1,
+		uint8_t *d_cost, const int rows, const int cols );
 
-#define PATH_AGGREGATION	4
-#define	MAX_DISPARITY		128
-#define CENSUS_WIDTH		9
-#define CENSUS_HEIGHT		7
-
-#define OCCLUDED_PIXEL		128
-#define MISMATCHED_PIXEL	129
-
-#define TOP				(CENSUS_HEIGHT-1)/2
-#define LEFT			(CENSUS_WIDTH-1)/2
-
-typedef uint32_t cost_t;
-#define MAX_COST		30
-
-#define BLOCK_SIZE					256
-#define COSTAGG_BLOCKSIZE			GPU_THREADS_PER_BLOCK
-#define COSTAGG_BLOCKSIZE_HORIZ		GPU_THREADS_PER_BLOCK
-
-#define ABS_THRESH 3.0
-#define REL_THRESH 0.05
-
-#endif /* CONFIGURATION_H_ */
+#endif /* HAMMING_COST_H_ */
