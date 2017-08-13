@@ -45,9 +45,6 @@ const int width_margin = 0;
 const float sigma_camera_tilt = 0.05f;
 const float sigma_camera_height = 0.05f;
 const float camera_center_x = 651.216186523f;
-float camera_height;
-float camera_tilt;
-float alpha_ground;
 
 /* Model Parameters */
 const bool median_step = false;
