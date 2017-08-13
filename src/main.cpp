@@ -125,7 +125,6 @@ int main(int argc, char *argv[]) {
         if (right_frame.channels() > 1) {
             cv::cvtColor(right_frame, right_frame1, CV_RGB2GRAY);
         }
-
         
         float elapsed_time_ms;
         disparity_im = disparity_estimation.Compute(left_frame1, right_frame1, &elapsed_time_ms);
@@ -134,98 +133,14 @@ int main(int argc, char *argv[]) {
         std::cout << disparity_im.type() << std::endl;
 
         left_frame.copyTo(mix_frame(rect_roi));
-        cv::imshow("FOO",disparity_im);
         cv::cvtColor(disparity_im, disparity_im_color, CV_GRAY2BGR);
-        //right_frame.copyTo(mix_frame(rect_roi2));
-        disparity_im_color.copyTo(mix_frame(rect_roi2));
+        right_frame.copyTo(mix_frame(rect_roi2));
         cv::imshow("Test", mix_frame);
 
-        //if (h_im0.rows % 4 != 0 || h_im0.cols % 4 != 0) {
-        //    std::cerr << "Due to implementation limitations image width and height must be a divisible by 4" << std::endl;
-        //    return EXIT_FAILURE;
-        //}
         int c = cv::waitKey(100);
         if ((char)c == 27) break;
         if (c > 0) cv::waitKey(0);
         currentFrame++;
     }
-
-//	while ((ep = readdir(dp)) != NULL) {
-//		// Skip directories
-//		if (!strcmp (ep->d_name, "."))
-//			continue;
-//		if (!strcmp (ep->d_name, ".."))
-//			continue;
-//
-//		sprintf(left_file, "%s/%s/%s", directory, left_dir, ep->d_name);
-//		sprintf(right_file, "%s/%s/%s", directory, right_dir, ep->d_name);
-//		sprintf(dis_file, "%s/%s/%s", directory, disparity_dir, ep->d_name);
-//		sprintf(gt_file, "%s/%s/%s", directory, gt_dir, ep->d_name);
-//		size_t gt_len = strlen(gt_file);
-//
-//		cv::Mat h_im0 = cv::imread(left_file);
-//		if(!h_im0.data) {
-//			std::cerr << "Couldn't read the file " << left_file << std::endl;
-//			return EXIT_FAILURE;
-//		}
-//		cv::Mat h_im1 = cv::imread(right_file);
-//		if(!h_im1.data) {
-//			std::cerr << "Couldn't read the file " << right_file << std::endl;
-//			return EXIT_FAILURE;
-//		}
-//
-//		// Convert images to grayscale
-//		if (h_im0.channels()>1) {
-//			cv::cvtColor(h_im0, h_im0, CV_RGB2GRAY);
-//		}
-//
-//		if (h_im1.channels()>1) {
-//			cv::cvtColor(h_im1, h_im1, CV_RGB2GRAY);
-//		}
-//
-//		
-//
-//#if LOG
-//		std::cout << "processing: " << left_file << std::endl;
-//#endif
-//		// Compute
-//		float elapsed_time_ms;
-//		cv::Mat disparity_im = disparity_estimation.Compute(h_im0, h_im1, &elapsed_time_ms);
-//#if LOG
-//		std::cout << "done" << std::endl;
-//#endif
-//		times.push_back(elapsed_time_ms);
-//
-//		if(has_gt) {
-//			disparity_errors(disparity_im, gt_file, &n, &n_err);
-//		}
-//#if WRITE_FILES
-//	const int type = disparity_im.type();
-//	const uchar depth = type & CV_MAT_DEPTH_MASK;
-//	if(depth == CV_8U) {
-//		cv::imwrite(dis_file, disparity_im);
-//	} else {
-//		cv::Mat disparity16(disparity_im.rows, disparity_im.cols, CV_16UC1);
-//		for(int i = 0; i < disparity_im.rows; i++) {
-//			for(int j = 0; j < disparity_im.cols; j++) {
-//				const float d = disparity_im.at<float>(i, j)*256.0f;
-//				disparity16.at<uint16_t>(i, j) = (uint16_t) d;
-//			}
-//		}
-//		cv::imwrite(dis_file, disparity16);
-//	}
-//#endif
-//	}
-//	closedir(dp);
-//    disparity_estimation.Finish();
-//
-//	double mean = std::accumulate(times.begin(), times.end(), 0.0) / times.size();
-//	if(has_gt) {
-//		printf("%f\n", (float) n_err/n);
-//        std::cout << "It took an average of " << mean << " miliseconds, " << 1000.0f / mean << " fps" << std::endl;
-//	} else {
-//		std::cout << "It took an average of " << mean << " miliseconds, " << 1000.0f/mean << " fps" << std::endl;
-//	}
-//
 	return 0;
 }
