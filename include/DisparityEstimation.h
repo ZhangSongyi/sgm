@@ -18,15 +18,23 @@
 
 **/
 
-#ifndef COSTS_H_
-#define COSTS_H_
+#ifndef DISPARITY_ESTIMATION_H_
+#define DISPARITY_ESTIMATION_H_
 
-#include <stdint.h>
-#include "cuda.h"
-#include "cuda_runtime.h"
-#include "device_launch_parameters.h"
-#include "configuration.h"
+#include <opencv2/opencv.hpp>
+#include <memory>
 
-__global__ void CenterSymmetricCensusKernelSM2(const uint8_t *im, const uint8_t *im2, cost_t *transform, cost_t *transform2, const uint32_t rows, const uint32_t cols);
+class DisparityEstimation
+{
+public:
+    DisparityEstimation();
+    ~DisparityEstimation();
+    void Initialize(const uint8_t p1, const uint8_t p2);
+    cv::Mat Compute(cv::Mat left, cv::Mat right, float *elapsed_time_ms);
+    void Finish();
+private:
+    class DisparityEstimationImpl;
+    std::auto_ptr<DisparityEstimationImpl> m_impl;
+};
 
-#endif /* COSTS_H_ */
+#endif /* DISPARITY_METHOD_H_ */

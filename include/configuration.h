@@ -22,7 +22,9 @@
 #define CONFIGURATION_H_
 
 #include <stdint.h>
-
+/**
+ ** GENERAL CONFIGURATION
+ **/
 #define LOG						false
 #define WRITE_FILES				true
 
@@ -40,15 +42,15 @@
 #define ALLOW_INVALID_DISPARITIES	false
 #define LOG_LUT_SIZE			1000000
 
-typedef float pixel_t;
-typedef uint32_t cost_t;
 #define MAX_COST		30
-
 #define BLOCK_SIZE					256
 #define COSTAGG_BLOCKSIZE			GPU_THREADS_PER_BLOCK
 #define COSTAGG_BLOCKSIZE_HORIZ		GPU_THREADS_PER_BLOCK
 
 #define ABS_THRESH 3.0
 #define REL_THRESH 0.05
+
+typedef float pixel_t;
+typedef uint32_t cost_t;
 
 #endif /* CONFIGURATION_H_ */

@@ -18,15 +18,16 @@
 
 **/
 
-#ifndef STIXELSKERNELS_H_
-#define STIXELSKERNELS_H_
+#ifndef STIXEL_SKERNELS_CUH_
+#define STIXEL_SKERNELS_CUH_
 
 #include <stdint.h>
-#include "Stixels.hpp"
+#include "Stixels.h"
 #include "configuration.h"
 #include "cuda.h"
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
+#include "util.hpp"
 
 
 __global__ void StixelsKernel(const pixel_t* __restrict__ d_disparity, const StixelParameters params,
@@ -74,4 +75,4 @@ __inline__ __device__ void ComputePrefixSum(T *arr, const int n) {
     }
 }
 
-#endif /* STIXELSKERNELS_H_ */
+#endif /* STIXELS_KERNELS_CUH_ */

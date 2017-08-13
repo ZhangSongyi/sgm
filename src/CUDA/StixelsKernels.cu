@@ -18,7 +18,7 @@
 
 **/
 
-#include "StixelsKernels.h"
+#include "StixelsKernels.cuh"
 
 __inline__ __device__ float FastLog(const float v) {
 	return __logf(v);

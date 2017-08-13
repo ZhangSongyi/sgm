@@ -18,8 +18,8 @@
 
 **/
 
-#ifndef ROADESTIMATIONKERNELS_H_
-#define ROADESTIMATIONKERNELS_H_
+#ifndef ROAD_ESTIMATION_KERNELS_CUH_
+#define ROAD_ESTIMATION_KERNELS_CUH_
 
 #include <stdint.h>
 #include "configuration.h"
@@ -34,4 +34,4 @@ __global__ void ComputeMaximum(int* __restrict__ d_im, int *maximum, const int r
 __global__ void ComputeBinaryImage(int* __restrict__ d_im, uint8_t* __restrict__ d_out, int *maximum,
 		float threshold, const int rows, const int cols);
 
-#endif /* ROADESTIMATIONKERNELS_H_ */
+#endif /* ROAD_ESTIMATION_KERNELS_H_ */

@@ -18,8 +18,8 @@
 
 **/
 
-#ifndef HAMMING_COST_H_
-#define HAMMING_COST_H_
+#ifndef HAMMING_DISTANCE_COST_KERNEL_CUH_
+#define HAMMING_DISTANCE_COST_KERNEL_CUH_
 
 #include "configuration.h"
 #include "util.hpp"
@@ -31,4 +31,4 @@
 __global__ void HammingDistanceCostKernel (  const cost_t *d_transform0, const cost_t *d_transform1,
 		uint8_t *d_cost, const int rows, const int cols );
 
-#endif /* HAMMING_COST_H_ */
+#endif /* HAMMING_DISTANCE_COST_KERNEL_CUH_ */

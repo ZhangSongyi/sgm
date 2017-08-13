@@ -48,7 +48,7 @@
 #include <fstream>
 #include "configuration.h"
 #include "debug.h"
-#include "disparity_method.h"
+#include "DisparityEstimation.h"
 
 bool directory_exists(const char* dir) {
 #ifdef WIN32
@@ -165,7 +165,8 @@ int main(int argc, char *argv[]) {
 	int n_err = 0;
 	std::vector<float> times;
 
-	init_disparity_method(p1, p2);
+    DisparityEstimation disparity_estimation;
+    disparity_estimation.Initialize(p1, p2);
 	while ((ep = readdir(dp)) != NULL) {
 		// Skip directories
 		if (!strcmp (ep->d_name, "."))
@@ -213,7 +214,7 @@ int main(int argc, char *argv[]) {
 #endif
 		// Compute
 		float elapsed_time_ms;
-		cv::Mat disparity_im = compute_disparity_method(h_im0, h_im1, &elapsed_time_ms, directory, ep->d_name);
+		cv::Mat disparity_im = disparity_estimation.Compute(h_im0, h_im1, &elapsed_time_ms);
 #if LOG
 		std::cout << "done" << std::endl;
 #endif
@@ -240,7 +241,7 @@ int main(int argc, char *argv[]) {
 #endif
 	}
 	closedir(dp);
-	finish_disparity_method();
+    disparity_estimation.Finish();
 
 	double mean = std::accumulate(times.begin(), times.end(), 0.0) / times.size();
 	if(has_gt) {

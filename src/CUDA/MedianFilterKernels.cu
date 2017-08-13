@@ -18,15 +18,8 @@
 
 **/
 
-#ifndef DISPARITY_METHOD_H_
-#define DISPARITY_METHOD_H_
+#include "MedianFilterKernels.cuh"
 
-#include <opencv2/opencv.hpp>
-#include "configuration.h"
-
-extern "C" void init_disparity_method(const uint8_t _p1, const uint8_t _p2);
-extern "C" cv::Mat compute_disparity_method(cv::Mat left, cv::Mat right, float *elapsed_time_ms, const char* directory, const char* fname);
-extern "C" void finish_disparity_method();
-extern "C" void free_memory();
-
-#endif /* DISPARITY_METHOD_H_ */
+__global__ void MedianFilter3x3(const uint8_t* __restrict__ d_input, uint8_t* __restrict__ d_out, const uint32_t rows, const uint32_t cols) {
+	MedianFilter<3>(d_input, d_out, rows, cols);
+}

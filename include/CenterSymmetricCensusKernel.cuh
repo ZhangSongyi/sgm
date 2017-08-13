@@ -18,8 +18,15 @@
 
 **/
 
-#include "median_filter.h"
+#ifndef CENTER_SYMMETRIC_CENSUS_KERNEL_CUH_
+#define CENTER_SYMMETRIC_CENSUS_KERNEL_CUH_
 
-__global__ void MedianFilter3x3(const uint8_t* __restrict__ d_input, uint8_t* __restrict__ d_out, const uint32_t rows, const uint32_t cols) {
-	MedianFilter<3>(d_input, d_out, rows, cols);
-}
+#include <stdint.h>
+#include "cuda.h"
+#include "cuda_runtime.h"
+#include "device_launch_parameters.h"
+#include "configuration.h"
+
+__global__ void CenterSymmetricCensusKernelSM2(const uint8_t *im, const uint8_t *im2, cost_t *transform, cost_t *transform2, const uint32_t rows, const uint32_t cols);
+
+#endif /* CENTER_SYMMETRIC_CENSUS_KERNEL_CUH_ */

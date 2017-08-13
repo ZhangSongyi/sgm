@@ -18,8 +18,8 @@
 
 **/
 
-#ifndef COST_AGGREGATION_H_
-#define COST_AGGREGATION_H_
+#ifndef COST_AGGREGATION_HPP_
+#define COST_AGGREGATION_HPP_
 
 #define ITER_COPY			0
 #define ITER_NORMAL			1
@@ -512,4 +512,4 @@ __global__ void CostAggregationKernelUpToDown(uint8_t* d_cost, uint8_t *d_L, con
 	}
 }
 
-#endif /* COST_AGGREGATION_H_ */
+#endif /* COST_AGGREGATION_HPP_ */
