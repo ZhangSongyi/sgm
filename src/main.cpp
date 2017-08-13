@@ -52,7 +52,7 @@
 #include "DisparityEstimation.h"
 
 int main(int argc, char *argv[]) {
-	if(argc < 2) {
+	if(argc < 3) {
 		std::cerr << "Usage: sgm left_video right_video" << std::endl;
 		return EXIT_FAILURE;
 	}
@@ -65,8 +65,10 @@ int main(int argc, char *argv[]) {
         return EXIT_FAILURE;
     }
 
-	const char* left_video_path = argv[0];
-    const char* right_video_path = argv[1];
+	const char* left_video_path = argv[1];
+    const char* right_video_path = argv[2];
+
+    std::cout << left_video_path << std::endl;
 
     cv::VideoCapture left_video(left_video_path);
     cv::VideoCapture right_video(right_video_path);
@@ -132,6 +134,7 @@ int main(int argc, char *argv[]) {
         std::cout << disparity_im.type() << std::endl;
 
         left_frame.copyTo(mix_frame(rect_roi));
+        cv::imshow("FOO",disparity_im);
         cv::cvtColor(disparity_im, disparity_im_color, CV_GRAY2BGR);
         //right_frame.copyTo(mix_frame(rect_roi2));
         disparity_im_color.copyTo(mix_frame(rect_roi2));

@@ -25,7 +25,7 @@
 /**
  ** GENERAL CONFIGURATION
  **/
-#define LOG						false
+#define LOG						true
 #define WRITE_FILES				true
 
 #define PATH_AGGREGATION	4
