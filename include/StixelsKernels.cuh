@@ -27,6 +27,7 @@
 #include "cuda.h"
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
+#include "util.hpp"
 
 
 __global__ void StixelsKernel(const pixel_t* __restrict__ d_disparity, const StixelParameters params,

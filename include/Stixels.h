@@ -18,21 +18,10 @@
 
 **/
 
-#include <vector>
-#include <stdint.h>
-#include <stdio.h>
-#include <cmath>
-#include <iostream>
-#include <string.h>
-#include <stdlib.h>
-#include <nvToolsExt.h>
+
 #include <opencv2/opencv.hpp>
+#include <memory>
 #include "configuration.h"
-#include "StixelsKernels.cuh"
-#include "util.hpp"
-#include "cuda.h"
-#include "cuda_runtime.h"
-#include "device_launch_parameters.h"
 
 #ifndef STIXELS_H_
 #define STIXELS_H_
@@ -81,22 +70,16 @@ struct StixelParameters {
 	int width_margin;
 };
 
-
 class Stixels {
 public:
-    // Constructors and destructors
 	Stixels();
 	~Stixels();
-
-    // Initialize and finalizes
 	void Initialize();
-	void Finish();
-
-    // Methods
 	float Compute();
 	Section* GetStixels();
 	int GetRealCols();
 	int GetMaxSections();
+	void Finish();
 	void SetDisparityImage(pixel_t *disp_im);
 	void SetProbabilities(float pout, float pout_sky, float pground_given_nexist,
 			float pobject_given_nexist, float psky_given_nexist, float pnexist_dis, float pground,
@@ -107,124 +90,9 @@ public:
     		const float sigma_disparity_object, const float sigma_disparity_ground, float sigma_sky);
 	void SetModelParameters(const int column_step, const bool median_step, float epsilon, float range_objects_z,
 			int width_margin);
-// ATRIBUTES
 private:
-	// Managers
-
-	// GPU
-	pixel_t *d_disparity;
-	pixel_t *d_disparity_big;
-	float *d_ground_function;
-	float *d_normalization_ground;
-	float *d_inv_sigma2_ground;
-	float *d_normalization_object;
-	float *d_inv_sigma2_object;
-	float *d_object_lut;
-	float *d_object_disparity_range;
-	float *d_obj_cost_lut;
-	cudaStream_t m_stream1, m_stream2;
-	StixelParameters m_params;
-	int m_max_sections;
-	Section *d_stixels;
-
-	// Variables
-	pixel_t *m_disp_im;
-	pixel_t *m_disp_im_modified;
-
-	// Probabilities
-	float m_pout;
-	float m_pout_sky;
-	float m_pnexists_given_ground;
-	float m_pnexists_given_object;
-	float m_pnexists_given_sky;
-	float m_pord;
-	float m_pgrav;
-	float m_pblg;
-
-	// Camera parameters
-	float m_focal;
-	float m_baseline;
-	float m_camera_tilt;
-	float m_sigma_camera_tilt;
-	float m_camera_height;
-	float m_sigma_camera_height;
-	int m_vhor;
-
-	// Disparity Parameters
-	int m_max_dis;
-	float m_max_disf;
-	int m_rows, m_cols, m_realcols;
-	float m_sigma_disparity_object;
-	float m_sigma_disparity_ground;
-	float m_sigma_sky;
-
-	// Other model parameters
-	int m_column_step;
-	bool m_median_step;
-	float m_alpha_ground;
-	float m_range_objects_z;
-	float m_epsilon;
-	int m_width_margin;
-
-	// Tables
-	float *m_cost_table;
-	int16_t *m_index_table;
-
-	// LUTs
-	pixel_t *m_sum;
-	pixel_t *m_valid;
-	float *m_log_lut;
-	float *m_obj_cost_lut;
-
-	// Current column data
-	pixel_t *m_column;
-
-	// Values of ground function
-	float *m_ground_function;
-
-	// Frequently used values
-	float m_max_dis_log;
-	float m_rows_log;
-	float m_pnexists_given_sky_log;
-	float m_nopnexists_given_sky_log;
-	float m_pnexists_given_ground_log;
-	float m_nopnexists_given_ground_log;
-	float m_pnexists_given_object_log;
-	float m_nopnexists_given_object_log;
-
-	// Data Term precomputation
-	float m_puniform;
-	float m_puniform_sky;
-	float m_normalization_sky;
-	float m_inv_sigma2_sky;
-	float *m_normalization_ground;
-	float *m_inv_sigma2_ground;
-	float *m_normalization_object;
-	float *m_inv_sigma2_object;
-	float *m_object_disparity_range;
-
-	// Result
-	Section *m_stixels;
-
-	// Methods
-	void PrecomputeSky();
-	void PrecomputeGround();
-	void PrecomputeObject();
-	float GetDataCostObject(const float fn, const int dis, const float d);
-	float ComputeObjectDisparityRange(const float previous_mean);
-	pixel_t ComputeMean(const int vB, const int vT, const int u);
-	float GroundFunction(const int v);
-	float FastLog(float v);
-
-	template<typename T>
-	void PrintTable(T *table) {
-		for(int i = m_rows-1; i >= 0; i--) {
-			std::cout << i << "\t" << table[i*3] << "\t" << table[i*3+1]
-			              << "\t" << table[i*3+2] << std::endl;
-		}
-	}
+    class StixelsImpl;
+    std::auto_ptr<StixelsImpl> m_impl;
 };
-
-
 
 #endif /* STIXELS_H_ */

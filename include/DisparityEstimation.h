@@ -24,7 +24,6 @@
 #include <opencv2/opencv.hpp>
 #include <memory>
 
-class DisparityEstimationImpl;
 class DisparityEstimation
 {
 public:
@@ -34,6 +33,7 @@ public:
     cv::Mat Compute(cv::Mat left, cv::Mat right, float *elapsed_time_ms);
     void Finish();
 private:
+    class DisparityEstimationImpl;
     std::auto_ptr<DisparityEstimationImpl> m_impl;
 };
 

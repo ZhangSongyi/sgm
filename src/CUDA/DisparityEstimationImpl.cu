@@ -29,7 +29,7 @@
 #include "CostAggregationKernels.hpp"
 #include "debug.h"
 
-class DisparityEstimationImpl
+class DisparityEstimation::DisparityEstimationImpl
 {
 public:
     DisparityEstimationImpl() {}
@@ -70,7 +70,7 @@ private:
     void free_memory();
 };
 
-void DisparityEstimationImpl::Initialize(const uint8_t p1, const uint8_t p2) {
+void DisparityEstimation::DisparityEstimationImpl::Initialize(const uint8_t p1, const uint8_t p2) {
     // We are not using shared memory, use L1
     //CUDA_CHECK_RETURN(cudaDeviceSetCacheConfig(cudaFuncCachePreferL1));
     //CUDA_CHECK_RETURN(cudaDeviceSetCacheConfig(cudaFuncCachePreferShared));
@@ -86,7 +86,7 @@ void DisparityEstimationImpl::Initialize(const uint8_t p1, const uint8_t p2) {
     cols = 0;
 }
 
-cv::Mat DisparityEstimationImpl::Compute(cv::Mat left, cv::Mat right, float *elapsed_time_ms) {
+cv::Mat DisparityEstimation::DisparityEstimationImpl::Compute(cv::Mat left, cv::Mat right, float *elapsed_time_ms) {
 	if(cols != left.cols || rows != left.rows) {
 		debug_log("WARNING: cols or rows are different");
 		if(!first_alloc) {
@@ -162,7 +162,7 @@ cv::Mat DisparityEstimationImpl::Compute(cv::Mat left, cv::Mat right, float *ela
 	return disparity;
 }
 
-void DisparityEstimationImpl::Finish() {
+void DisparityEstimation::DisparityEstimationImpl::Finish() {
 	if(!first_alloc) {
 		free_memory();
 		CUDA_CHECK_RETURN(cudaStreamDestroy(stream1));
@@ -171,7 +171,7 @@ void DisparityEstimationImpl::Finish() {
 	}
 }
 
-void DisparityEstimationImpl::malloc_memory() {
+void DisparityEstimation::DisparityEstimationImpl::malloc_memory() {
     CUDA_CHECK_RETURN(cudaMalloc((void **)&d_im0, sizeof(uint8_t)*size));
     CUDA_CHECK_RETURN(cudaMalloc((void **)&d_im1, sizeof(uint8_t)*size));
     CUDA_CHECK_RETURN(cudaMalloc((void **)&d_transform0, sizeof(cost_t)*size));
@@ -192,7 +192,7 @@ void DisparityEstimationImpl::malloc_memory() {
     h_disparity = new uint8_t[size];
 }
 
-void DisparityEstimationImpl::free_memory() {
+void DisparityEstimation::DisparityEstimationImpl::free_memory() {
 	CUDA_CHECK_RETURN(cudaFree(d_im0));
 	CUDA_CHECK_RETURN(cudaFree(d_im1));
 	CUDA_CHECK_RETURN(cudaFree(d_transform0));

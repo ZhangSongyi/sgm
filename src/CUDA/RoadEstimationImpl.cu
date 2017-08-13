@@ -19,15 +19,71 @@
 **/
 
 #include "RoadEstimation.h"
+#include "RoadEstimationKernels.cuh"
+#include "util.hpp"
+#include "cuda.h"
+#include "cuda_runtime.h"
+#include "device_launch_parameters.h"
+#include <vector>
 
-RoadEstimation::RoadEstimation()
-{}
+class RoadEstimation::RoadEstimationImpl
+{
+public:
+    RoadEstimationImpl();
+    ~RoadEstimationImpl();
+    void Initialize(const float camera_center_y, const float baseline, const float focal, const int rows,
+        const int cols, const int max_dis);
+    bool Compute(const pixel_t *im);
+    void Finish();
+    float GetCameraHeight() {return m_cameraHeight;};
+    float GetPitch() {return m_pitch;};
+    float GetSlope() {return m_slope;};
+    int getHorizonPoint() {return m_horizonPoint;};
+private:
+    void ComputeCameraProperties(cv::Mat vDisp, const float rho, const float theta, float& horizonPoint,
+        float& pitch, float& cameraHeight, float& slope) const;
+    bool ComputeHough(uint8_t *vDisp, float& rho, float& theta, float& horizonPoint, float& pitch,
+        float& cameraHeight, float& slope);
 
+private: /*CUDA Host Pointer*/
+    int m_rangeAngleX;          ///< Angle interval to discard horizontal planes
+    int m_rangeAngleY;          ///< Angle interval to discard vertical planes
+    int m_HoughAccumThr;        ///< Threshold of the min number of points to form a line
+    float m_binThr;             ///< Threshold to binarize vDisparity histogram
+    float m_maxPitch;			///< Angle elevation maximun of camera
+    float m_minPitch;			///< Angle elevation minimum of camera
+    float m_maxCameraHeight;    ///< Height maximun of camera
+    float m_minCameraHeight;    ///< Height minimun of camera
+    int m_max_dis;
+    int m_rows;
+    int m_cols;
 
-RoadEstimation::~RoadEstimation()
-{}
+    // Member objects
+    float m_rho;                 ///< Line in polar (Distance from (0,0) to the line)
+    float m_theta;               ///< Line in polar (Angle of the line with x axis)
 
-void RoadEstimation::Initialize(const float camera_center_y, const float baseline, const float focal,
+    // Auxiliar variables
+    int m_horizonPoint;          ///< Horizon point of v-disparity histogram
+    float m_pitch;               ///< Camera pitch
+    float m_cameraHeight;        ///< Camera height
+    float m_cy;                  ///< Image center from stereo camera
+    float m_b;                   ///< Stereo camera baseline
+    float m_focal;               ///< Stereo camera focal length
+    float m_slope;
+
+private: /*CUDA Device Pointer*/
+    pixel_t *d_disparity;
+    int *d_vDisp;
+    int *d_maximum;
+    uint8_t *d_vDispBinary;
+    uint8_t *m_vDisp;
+};
+
+RoadEstimation::RoadEstimationImpl::RoadEstimationImpl() {}
+
+RoadEstimation::RoadEstimationImpl::~RoadEstimationImpl() {}
+
+void RoadEstimation::RoadEstimationImpl::Initialize(const float camera_center_y, const float baseline, const float focal,
 		const int rows, const int cols, const int max_dis) {
 	// Get camera parameters
 	m_cy = camera_center_y;
@@ -68,16 +124,15 @@ void RoadEstimation::Initialize(const float camera_center_y, const float baselin
 	CUDA_CHECK_RETURN(cudaMalloc((void **)&d_vDispBinary, m_max_dis*m_rows*sizeof(uint8_t)));
 }
 
-void RoadEstimation::Finish() {
+void RoadEstimation::RoadEstimationImpl::Finish() {
 	CUDA_CHECK_RETURN(cudaFree(d_vDisp));
 	CUDA_CHECK_RETURN(cudaFree(d_disparity));
 	CUDA_CHECK_RETURN(cudaFree(d_maximum));
 	CUDA_CHECK_RETURN(cudaFree(d_vDispBinary));
 	free(m_vDisp);
-
 }
 
-bool RoadEstimation::Compute(const pixel_t *im) {
+bool RoadEstimation::RoadEstimationImpl::Compute(const pixel_t *im) {
 	bool ok = false;
 
 	CUDA_CHECK_RETURN(cudaMemset(d_maximum, 0, 1*sizeof(int)));
@@ -105,7 +160,7 @@ bool RoadEstimation::Compute(const pixel_t *im) {
 	return ok;
 }
 
-bool RoadEstimation::ComputeHough(uint8_t *d_vDispBinary, float& rho, float& theta, float& horizonPoint,
+bool RoadEstimation::RoadEstimationImpl::ComputeHough(uint8_t *d_vDispBinary, float& rho, float& theta, float& horizonPoint,
 		float& pitch, float& cameraHeight, float& slope) {
 	// Compute the Hough transform
 	std::vector<cv::Vec2f> lines;
@@ -132,7 +187,7 @@ bool RoadEstimation::ComputeHough(uint8_t *d_vDispBinary, float& rho, float& the
 	return false;
 }
 
-void RoadEstimation::ComputeCameraProperties(cv::Mat vDisp, const float rho, const float theta,
+void RoadEstimation::RoadEstimationImpl::ComputeCameraProperties(cv::Mat vDisp, const float rho, const float theta,
 		float& horizonPoint, float& pitch, float& cameraHeight, float& slope) const
 {
 	// Compute Horizon Line (2D)
@@ -150,3 +205,36 @@ void RoadEstimation::ComputeCameraProperties(cv::Mat vDisp, const float rho, con
 	cameraHeight = m_b*cosf(pitch)/slope;
 }
 
+RoadEstimation::RoadEstimation() : 
+    m_impl(new RoadEstimationImpl()) {}
+
+RoadEstimation::~RoadEstimation() {}
+
+void RoadEstimation::Initialize(const float camera_center_y, const float baseline, const float focal, const int rows,
+    const int cols, const int max_dis) {
+    m_impl->Initialize(camera_center_y, baseline, focal, rows, cols, max_dis);
+}
+
+bool RoadEstimation::Compute(const pixel_t *im) {
+    return m_impl->Compute(im);
+}
+
+void RoadEstimation::Finish() {
+    m_impl->Finish();
+}
+
+float RoadEstimation::GetCameraHeight() {
+    return m_impl->GetCameraHeight();
+}
+
+float RoadEstimation::GetPitch() {
+    return m_impl->GetPitch();
+}
+
+float RoadEstimation::GetSlope() {
+    return m_impl->GetSlope();
+}
+
+int RoadEstimation::getHorizonPoint() {
+    return m_impl->getHorizonPoint();
+}
