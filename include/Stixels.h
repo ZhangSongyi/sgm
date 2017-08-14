@@ -47,9 +47,7 @@ public:
 	int GetMaxSections();
 	void Finish();
 	void SetDisparityImage(pixel_t *disp_im);
-	void SetProbabilities(float pout, float pout_sky, float pground_given_nexist,
-			float pobject_given_nexist, float psky_given_nexist, float pnexist_dis, float pground,
-			float pobject, float psky, float pord, float pgrav, float pblg);
+	void SetProbabilities(ProbabilitiesParameters params);
 	void SetCameraParameters(int vhor, float focal, float baseline, float camera_tilt,
 			float sigma_camera_tilt, float camera_height, float sigma_camera_height, float alpha_ground);
     void SetDisparityParameters(const int rows, const int cols, const int max_dis,

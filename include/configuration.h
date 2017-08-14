@@ -50,6 +50,8 @@
 #define ABS_THRESH 3.0
 #define REL_THRESH 0.05
 
+#define ROBUST_MEAN_ESTIMATION true
+
 typedef float pixel_t;
 typedef uint32_t cost_t;
 

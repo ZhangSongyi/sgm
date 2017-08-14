@@ -18,29 +18,26 @@ const float sigma_disparity_object = 1.0f;
 const float sigma_disparity_ground = 2.0f;
 const float sigma_sky = 0.1f; // Should be small compared to sigma_dis
 
-/* Probabilities */
-const float pout = 0.15f;
-const float pout_sky = 0.4f;
-const float pord = 0.2f;
-const float pgrav = 0.1f;
-const float pblg = 0.04f;
-
-//
-// Must add 1
-const float pground_given_nexist = 0.36f;
-const float pobject_given_nexist = 0.28f;
-const float psky_given_nexist = 0.36f;
-
-const float pnexist_dis = 0.0f;
-const float pground = 1.0f / 3.0f;
-const float pobject = 1.0f / 3.0f;
-const float psky = 1.0f / 3.0f;
-
 const struct CameraParameters camera_parameters = {
     /*cameraCenterX = */ 651.216186523f,
     /*cameraCenterY = */ 224.2f,
     /*baseline      = */ 0.643f,
     /*focal         = */ 960.0f
+};
+
+const struct ProbabilitiesParameters probabilities_parameters = {
+    /*out                = */ 0.15f,
+    /*outSky             = */ 0.4f,
+    /*groundGivenNExist  = */ 0.36f,
+    /*objectGivenNExist  = */ 0.28f,
+    /*skyGivenNExist     = */ 0.36f,
+    /*nExistDis          = */ 0.0f,
+    /*ground             = */ 1.0f / 3.0f,
+    /*object             = */ 1.0f / 3.0f,
+    /*sky                = */ 1.0f / 3.0f,
+    /*ord                = */ 0.2f,
+    /*grav               = */ 0.1f,
+    /*blg                = */ 0.04f
 };
 
 // Virtual parameters

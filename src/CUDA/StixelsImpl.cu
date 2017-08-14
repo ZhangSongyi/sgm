@@ -44,9 +44,7 @@ public:
     int GetMaxSections() { return m_max_sections; }
     void Finish();
     void SetDisparityImage(pixel_t *disp_im);
-    void SetProbabilities(float pout, float pout_sky, float pground_given_nexist,
-        float pobject_given_nexist, float psky_given_nexist, float pnexist_dis, float pground,
-        float pobject, float psky, float pord, float pgrav, float pblg);
+    void SetProbabilities(ProbabilitiesParameters params);
     void SetCameraParameters(int vhor, float focal, float baseline, float camera_tilt,
         float sigma_camera_tilt, float camera_height, float sigma_camera_height, float alpha_ground);
     void SetDisparityParameters(const int rows, const int cols, const int max_dis,
@@ -322,17 +320,15 @@ void Stixels::StixelsImpl::SetDisparityImage(pixel_t *disp_im) {
 			cudaMemcpyHostToDevice, m_stream1));
 }
 
-void Stixels::StixelsImpl::SetProbabilities(float pout, float pout_sky, float pground_given_nexist,
-		float pobject_given_nexist, float psky_given_nexist, float pnexist_dis, float pground,
-		float pobject, float psky, float pord, float pgrav, float pblg) {
-	m_pout = pout;
-	m_pout_sky = pout_sky;
-	m_pnexists_given_ground = (pground_given_nexist*pnexist_dis)/pground;
-	m_pnexists_given_object = (pobject_given_nexist*pnexist_dis)/pobject;
-	m_pnexists_given_sky = (psky_given_nexist*pnexist_dis)/psky;
-	m_pord = pord;
-	m_pgrav = pgrav;
-	m_pblg = pblg;
+void Stixels::StixelsImpl::SetProbabilities(ProbabilitiesParameters params) {
+	m_pout = params.out;
+	m_pout_sky = params.outSky;
+	m_pnexists_given_ground = (params.groundGivenNExist*params.nExistDis)/ params.ground;
+	m_pnexists_given_object = (params.objectGivenNExist*params.nExistDis)/ params.object;
+	m_pnexists_given_sky = (params.skyGivenNExist*params.nExistDis)/ params.sky;
+	m_pord = params.ord;
+	m_pgrav = params.grav;
+	m_pblg = params.blg;
 }
 
 void Stixels::StixelsImpl::SetCameraParameters(int vhor, float focal, float baseline, float camera_tilt,
@@ -348,15 +344,14 @@ void Stixels::StixelsImpl::SetCameraParameters(int vhor, float focal, float base
 	m_alpha_ground = alpha_ground;
 }
 
-
 void Stixels::StixelsImpl::SetDisparityParameters(const int rows, const int cols, const int max_dis,
 		const float sigma_disparity_object, const float sigma_disparity_ground, float sigma_sky) {
 	m_rows = rows;
 	m_cols = cols;
 	m_max_dis = max_dis;
 	m_max_disf = (float) m_max_dis;
-    	m_sigma_disparity_object = sigma_disparity_object;
-    	m_sigma_disparity_ground = sigma_disparity_ground;
+    m_sigma_disparity_object = sigma_disparity_object;
+    m_sigma_disparity_ground = sigma_disparity_ground;
 	m_sigma_sky = sigma_sky;
 }
 
@@ -567,12 +562,8 @@ void Stixels::SetDisparityImage(pixel_t *disp_im) {
     m_impl->SetDisparityImage(disp_im);
 }
 
-void Stixels::SetProbabilities(float pout, float pout_sky, float pground_given_nexist,
-    float pobject_given_nexist, float psky_given_nexist, float pnexist_dis, float pground,
-    float pobject, float psky, float pord, float pgrav, float pblg) {
-    m_impl->SetProbabilities(pout, pout_sky, pground_given_nexist,
-        pobject_given_nexist, psky_given_nexist, pnexist_dis, pground,
-        pobject, psky, pord, pgrav, pblg);
+void Stixels::SetProbabilities(ProbabilitiesParameters params) {
+    m_impl->SetProbabilities(params);
 }
 
 void Stixels::SetCameraParameters(int vhor, float focal, float baseline, float camera_tilt,

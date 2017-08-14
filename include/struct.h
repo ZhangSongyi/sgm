@@ -50,4 +50,30 @@ struct StixelParameters {
     int width_margin;
 };
 
+struct ProbabilitiesParameters {
+    float out;
+    float outSky;
+    float groundGivenNExist;
+    float objectGivenNExist;
+    float skyGivenNExist;
+    float nExistDis;
+    float ground;
+    float object;
+    float sky;
+    float ord;
+    float grav;
+    float blg;
+};
+
+struct ExportProbabilitiesParameters {
+    float uniformSky;
+    float uniform;
+    float nExistsGivenSkyLOG;
+    float nExistsGivenSkyNLOG;
+    float nExistsGivenGroundLOG;
+    float nExistsGivenGroundNLOG;
+    float nExistsGivenObjectLOG;
+    float nExistsGivenObjectNLOG;
+};
+
 #endif /* STRUCT_H_ */

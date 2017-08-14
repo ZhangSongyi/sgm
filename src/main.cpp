@@ -185,7 +185,7 @@ int main(int argc, char *argv[]) {
             mix_frame = cv::Mat::zeros(cv::Size(rect_size.width, rect_size.height * 2), CV_8UC3);
 
             stixles.SetDisparityParameters(rect_size.height, rect_size.width, MAX_DISPARITY, sigma_disparity_object, sigma_disparity_ground, sigma_sky);
-            stixles.SetProbabilities(pout, pout_sky, pground_given_nexist, pobject_given_nexist, psky_given_nexist, pnexist_dis, pground, pobject, psky, pord, pgrav, pblg);
+            stixles.SetProbabilities(probabilities_parameters);
             stixles.SetModelParameters(column_step, median_step, epsilon, range_objects_z, width_margin);
             stixles.SetCameraParameters(0, camera_parameters.focal, camera_parameters.baseline, 0.0f, sigma_camera_tilt, 0.0f, sigma_camera_height, 0.0f);
             stixles.Initialize();
