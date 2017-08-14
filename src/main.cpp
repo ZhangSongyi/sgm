@@ -107,6 +107,40 @@ void HSV_to_RGB(const float h, const float s, const float v, int *cr, int *cg, i
 
 }
 
+cv::Mat colorTable;
+bool colorTableInitialized = false;
+
+void ColorizeDisparityMap(cv::InputArray disparityGrey, cv::OutputArray disparityColor)
+{
+    if (!colorTableInitialized)
+    {
+        colorTable.create(cv::Size(256, 1), CV_8UC3);
+        for (int i = 0; i < 256; i++)
+        {
+            int r, g, b;
+            r = std::max(std::min(std::min(i - 32 * 3, 32 * 9 - i) * 4, 255), 0);//r
+            g = std::max(std::min(std::min(i - 32 * 1, 32 * 7 - i) * 4, 255), 0);//g
+            b = std::max(std::min(std::min(i - 32 * (-1), 32 * 5 - i) * 4, 255), 0);//b
+            colorTable.at<cv::Vec3b>(i) = cv::Vec3b(b, g, r);
+        }
+        colorTableInitialized = true;
+    }
+
+    disparityColor.createSameSize(disparityGrey, CV_8UC3);
+    cv::Mat greyMat = disparityGrey.getMat();
+    cv::Mat colorMat = disparityColor.getMat();
+    for (int row = 0; row < greyMat.rows; row++)
+    {
+        for (int col = 0; col < greyMat.cols; col++)
+        {
+            uchar origin = greyMat.at<uchar>(row, col);
+            int originS = (int)(origin * 255.0 / MAX_DISPARITY);
+            //colorMat.at<Vec3b>(row, col) = Vec3b(255 - originS, min(originS, 255 - originS) * 2, originS);
+            colorMat.at<cv::Vec3b>(row, col) = colorTable.at<cv::Vec3b>(originS);
+        }
+    }
+}
+
 int main(int argc, char *argv[]) {
 	if(argc < 3) {
 		std::cerr << "Usage: sgm left_video right_video" << std::endl;
@@ -142,8 +176,8 @@ int main(int argc, char *argv[]) {
     cv::Mat disparity_im, disparity_im_color;
     cv::Size frame_size = cv::Size(0, 0);
     cv::Size rect_size = cv::Size(0, 0);
-    cv::Rect rect_roi = cv::Rect(0, 0, 0, 0);
-    cv::Rect rect_roi2 = cv::Rect(0, 0, 0, 0);
+    cv::Rect rect_roi_up = cv::Rect(0, 0, 0, 0);
+    cv::Rect rect_roi_down = cv::Rect(0, 0, 0, 0);
 
     cv::Mat mix_frame;
     float camera_height;
@@ -161,17 +195,18 @@ int main(int argc, char *argv[]) {
             std::cerr << "Reach the end of video file" << std::endl;
             return EXIT_SUCCESS;
         }
+        currentFrame++;
         if (left_frame.size() != right_frame.size()) {
             std::cerr << "Both images must have the same dimensions" << std::endl;
             return EXIT_FAILURE;
-        }       
+        }
 
         if (left_frame.size() != frame_size)
         {
             frame_size = left_frame.size();
             rect_size = cv::Size(frame_size.width / 4 * 4, frame_size.height / 4 * 4);
-            rect_roi = cv::Rect(0, 0, rect_size.width, rect_size.height);
-            rect_roi2 = cv::Rect(0, rect_size.height, rect_size.width, rect_size.height);
+            rect_roi_up = cv::Rect(0, 0, rect_size.width, rect_size.height);
+            rect_roi_down = cv::Rect(0, rect_size.height, rect_size.width, rect_size.height);
 
             std::cout << "FrameSize:" << frame_size.height << "*" << frame_size.width << std::endl;
             std::cout << "CutSize:" << rect_size.height << "*" << rect_size.width << std::endl;
@@ -186,8 +221,8 @@ int main(int argc, char *argv[]) {
             road_estimation.Initialize(camera_center_y, baseline, focal, rect_size.height, rect_size.width, MAX_DISPARITY);
         }
 
-        left_frame = left_frame(rect_roi);
-        right_frame = right_frame(rect_roi);
+        left_frame = left_frame(rect_roi_up);
+        right_frame = right_frame(rect_roi_up);
         
         if (left_frame.channels() > 1) {
             cv::cvtColor(left_frame, left_frame1, CV_RGB2GRAY);
@@ -218,11 +253,16 @@ int main(int argc, char *argv[]) {
 
         if (camera_tilt == 0 && camera_height == 0 && vhor == 0 && alpha_ground == 0) {
             printf("Can't compute road estimation\n");
-            first_time = false;
             continue;
         }
 
         std::cout << "Camera Parameters -> Tilt: " << camera_tilt << " Height: " << camera_height << " vHor: " << vhor << " alpha_ground: " << alpha_ground << std::endl;
+
+        if (camera_height < 0 || camera_height > 5 || vhor < 0 || alpha_ground < 0) {
+            printf("Error happened in computing road estimation\n");
+            continue;
+        }
+
         stixles.SetCameraParameters(vhor, focal, baseline, camera_tilt, sigma_camera_tilt, camera_height, sigma_camera_height, alpha_ground);
         
         elapsed_time_ms = stixles.Compute();
@@ -302,7 +342,7 @@ int main(int argc, char *argv[]) {
 
                     // Object = from green to red (far to near)
                     if (sec.type == OBJECT) {
-                        const float dis = (MAX_DISPARITY - sec.disparity) / MAX_DISPARITY;
+                        const float dis = (max_dis_display - sec.disparity) / max_dis_display;
                         float dis_f = dis;
                         if (dis_f < 0.0f) {
                             dis_f = 0.0f;
@@ -346,17 +386,18 @@ int main(int argc, char *argv[]) {
         }
 
         //MIX IMGS TOGETHER
-        left_frame.copyTo(mix_frame(rect_roi));
-        cv::cvtColor(disparity_im, disparity_im_color, CV_GRAY2BGR);
-        left_frame_stx.copyTo(mix_frame(rect_roi2));
+        //left_frame.copyTo(mix_frame(rect_roi_up));
+        //cv::cvtColor(disparity_im, disparity_im_color, CV_GRAY2BGR);
+        left_frame_stx.copyTo(mix_frame(rect_roi_up));
+        ColorizeDisparityMap(disparity_im, disparity_im_color);
+        disparity_im_color.copyTo(mix_frame(rect_roi_down));
         cv::imshow("Test", mix_frame);
 
         int c = cv::waitKey(100);
         if ((char)c == 27) break;
         if (c > 0) cv::waitKey(0);
-        currentFrame++;
-    }
 
+    }
 
     stixles.Finish();
     road_estimation.Finish();

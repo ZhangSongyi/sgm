@@ -51,4 +51,6 @@ const bool median_step = false;
 const float epsilon = 3.0f;
 const float range_objects_z = 10.20f; // in meters
 
+const float max_dis_display = (float)30;
+
 #endif /* CONFIGURATION_PARAMETERS_H_ */
