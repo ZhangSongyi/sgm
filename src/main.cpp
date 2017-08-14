@@ -162,7 +162,9 @@ int main(int argc, char *argv[]) {
         if (!left_video.read(left_frame) || !right_video.read(right_frame))
         {
             std::cerr << "Reach the end of video file" << std::endl;
-            return EXIT_SUCCESS;
+            left_video.set(CV_CAP_PROP_POS_FRAMES, 0);
+            right_video.set(CV_CAP_PROP_POS_FRAMES, 0);
+            continue;
         }
         currentFrame++;
         if (left_frame.size() != right_frame.size()) {
@@ -361,9 +363,13 @@ int main(int argc, char *argv[]) {
         disparity_im_color.copyTo(mix_frame(rect_roi_down));
         cv::imshow("Test", mix_frame);
 
-        int c = cv::waitKey(100);
-        if ((char)c == 27) break;
-        if (c > 0) cv::waitKey(0);
+        char c = cv::waitKey(100);
+        if (c == 27) break;
+        if (c != -1)
+        {
+            std::cout << "PAUSED" << c << std::endl;
+            cv::waitKey(0);
+        }
 
     }
 
