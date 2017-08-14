@@ -32,6 +32,8 @@ public:
     void Initialize(const uint8_t p1, const uint8_t p2);
     cv::Mat Compute(cv::Mat left, cv::Mat right, float *elapsed_time_ms);
     void Finish();
+    uint8_t * GetDisparityResultGPU();
+    float * GetDisparityResultFloatGPU();
 private:
     class DisparityEstimationImpl;
     std::auto_ptr<DisparityEstimationImpl> m_impl;

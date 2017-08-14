@@ -364,4 +364,15 @@ __inline__ __device__ bool blockAny(bool local_condition) {
 	return local_condition;
 }
 
+template<typename TIn, typename TOut>
+__global__ void TypeConvert(const TIn* __restrict__ d_input, TOut* __restrict__ d_out, const uint32_t rows, const uint32_t cols) {
+    const uint32_t idx = blockIdx.x*blockDim.x + threadIdx.x;
+    const uint32_t row = idx / cols;
+    const uint32_t col = idx % cols;
+
+    if (row < rows && col < cols) {
+        d_out[idx] = (TOut)d_input[idx];
+    }
+}
+
 #endif /* UTIL_H_ */

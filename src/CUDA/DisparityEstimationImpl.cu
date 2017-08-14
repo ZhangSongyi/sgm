@@ -37,6 +37,8 @@ public:
     void Initialize(const uint8_t p1, const uint8_t p2);
     cv::Mat Compute(cv::Mat left, cv::Mat right, float *elapsed_time_ms);
     void Finish();
+    uint8_t * GetDisparityResultGPU() { return d_disparity_filtered_uchar; }
+    float * GetDisparityResultFloatGPU() { return d_disparity_filtered_float; }
 
 private: /*CUDA Host Pointer*/
     uint8_t *h_disparity;
@@ -53,6 +55,7 @@ private: /*CUDA Device Pointer*/
     uint8_t *d_cost;
     uint8_t *d_disparity;
     uint8_t *d_disparity_filtered_uchar;
+    float *d_disparity_filtered_float;
     uint16_t *d_S;
     uint8_t *d_L0;
     uint8_t *d_L1;
@@ -148,6 +151,7 @@ cv::Mat DisparityEstimation::DisparityEstimationImpl::Compute(cv::Mat left, cv::
 #endif
 	debug_log("Calling Median Filter");
 	MedianFilter3x3<<<(size+MAX_DISPARITY-1)/MAX_DISPARITY, MAX_DISPARITY, 0, stream1>>>(d_disparity, d_disparity_filtered_uchar, rows, cols);
+    TypeConvert<<<(size + MAX_DISPARITY - 1) / MAX_DISPARITY, MAX_DISPARITY, 0, stream1>>>(d_disparity_filtered_uchar, d_disparity_filtered_float, rows, cols);
 
 	cudaEventRecord(stop, 0);
 	CUDA_CHECK_RETURN(cudaDeviceSynchronize());
@@ -189,6 +193,7 @@ void DisparityEstimation::DisparityEstimationImpl::malloc_memory() {
     CUDA_CHECK_RETURN(cudaMalloc((void **)&d_cost, sizeof(uint8_t)*size_cube_l));
     CUDA_CHECK_RETURN(cudaMalloc((void **)&d_disparity, sizeof(uint8_t)*size));
     CUDA_CHECK_RETURN(cudaMalloc((void **)&d_disparity_filtered_uchar, sizeof(uint8_t)*size));
+    CUDA_CHECK_RETURN(cudaMalloc((void **)&d_disparity_filtered_float, sizeof(float)*size));
     h_disparity = new uint8_t[size];
 }
 
@@ -209,6 +214,7 @@ void DisparityEstimation::DisparityEstimationImpl::free_memory() {
 #endif
 	CUDA_CHECK_RETURN(cudaFree(d_disparity));
 	CUDA_CHECK_RETURN(cudaFree(d_disparity_filtered_uchar));
+    CUDA_CHECK_RETURN(cudaFree(d_disparity_filtered_float));
 	CUDA_CHECK_RETURN(cudaFree(d_cost));
 
 	delete[] h_disparity;
@@ -229,4 +235,12 @@ cv::Mat DisparityEstimation::Compute(cv::Mat left, cv::Mat right, float *elapsed
 
 void DisparityEstimation::Finish() {
     m_impl->Finish();
+}
+
+uint8_t* DisparityEstimation::GetDisparityResultGPU() {
+    return m_impl->GetDisparityResultGPU();
+}
+
+float* DisparityEstimation::GetDisparityResultFloatGPU() {
+    return m_impl->GetDisparityResultFloatGPU();
 }

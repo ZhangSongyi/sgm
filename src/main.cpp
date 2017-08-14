@@ -1,4 +1,4 @@
-/**
+﻿/**
     This file is part of sgm. (https://github.com/dhernandez0/sgm).
 
     Copyright (c) 2016 Daniel Hernandez Juarez.
@@ -47,209 +47,360 @@
 #include <iostream>
 #include <fstream>
 #include "configuration.h"
+#include "configuration_parameters.h"
 #include "debug.h"
 #include "DisparityEstimation.h"
+#include "Stixels.h"
+#include "RoadEstimation.h"
 
-bool directory_exists(const char* dir) {
-#ifdef WIN32
-    return PathFileExists(dir) == TRUE;
-#else
-	DIR* d = opendir(dir);
-	bool ok = false;
-	if(d) {
-	    closedir(d);
-	    ok = true;
-	}
-	return ok;
-#endif
+void HSV_to_RGB(const float h, const float s, const float v, int *cr, int *cg, int *cb) {
+    const float h_prima = h*360.0f / 60.0f;
+
+    const float c = v*s;
+    const float h_mod = fmodf(h_prima, 2.0f);
+    const float x = c*(1.0f - fabsf(h_mod - 1.0f));
+
+    float r = 0.0f;
+    float g = 0.0f;
+    float b = 0.0f;
+
+    if (h_prima >= 0) {
+        if (h_prima < 1.0f) {
+            r = c;
+            g = x;
+            b = 0.0f;
+        }
+        else if (h_prima < 2.0f) {
+            r = x;
+            g = c;
+            b = 0.0f;
+        }
+        else if (h_prima < 3.0f) {
+            r = 0.0f;
+            g = c;
+            b = x;
+        }
+        else if (h_prima < 4.0f) {
+            r = 0.0f;
+            g = x;
+            b = c;
+        }
+        else if (h_prima < 5.0f) {
+            r = x;
+            g = 0.0f;
+            b = c;
+        }
+        else if (h_prima < 6.0f) {
+            r = c;
+            g = 0.0f;
+            b = x;
+        }
+    }
+
+    const float m = v - c;
+    r = (r + m)*255.0f;
+    g = (g + m)*255.0f;
+    b = (b + m)*255.0f;
+    *cr = (int)r;
+    *cg = (int)g;
+    *cb = (int)b;
+
 }
 
-void disparity_errors(cv::Mat estimation, const char* gt_file, int *n, int *n_err) {
-	int nlocal = 0;
-	int nerrlocal = 0;
+cv::Mat colorTable;
+bool colorTableInitialized = false;
 
-	cv::Mat gt_image = cv::imread(gt_file, cv::IMREAD_UNCHANGED);
-	if(!gt_image.data) {
-		std::cerr << "Couldn't read the file " << gt_file << std::endl;
-		exit(EXIT_FAILURE);
-	}
-	if(estimation.rows != gt_image.rows || estimation.cols != gt_image.cols) {
-		std::cerr << "Ground truth must have the same dimesions" << std::endl;
-		exit(EXIT_FAILURE);
-	}
-	const int type = estimation.type();
-	const uchar depth = type & CV_MAT_DEPTH_MASK;
-	for(int i = 0; i < gt_image.rows; i++) {
-		for(int j = 0; j < gt_image.cols; j++) {
-			const uint16_t gt = gt_image.at<uint16_t>(i, j);
-			if(gt > 0) {
-				const float gt_f = ((float)gt)/256.0f;
-				float est;
-				if(depth == CV_8U) {
-					est = (float) estimation.at<uint8_t>(i, j);
-				} else {
-					est = estimation.at<float>(i, j);
-				}
-				const float err = fabsf(est-gt_f);
-				const float ratio = err/fabsf(gt_f);
-				if(err > ABS_THRESH && ratio > REL_THRESH) {
-					nerrlocal++;
-				}
-				nlocal++;
-			}
-		}
-	}
-	*n += nlocal;
-	*n_err += nerrlocal;
-}
+void ColorizeDisparityMap(cv::InputArray disparityGrey, cv::OutputArray disparityColor)
+{
+    if (!colorTableInitialized)
+    {
+        colorTable.create(cv::Size(256, 1), CV_8UC3);
+        for (int i = 0; i < 256; i++)
+        {
+            int r, g, b;
+            r = std::max(std::min(std::min(i - 32 * 3, 32 * 9 - i) * 4, 255), 0);//r
+            g = std::max(std::min(std::min(i - 32 * 1, 32 * 7 - i) * 4, 255), 0);//g
+            b = std::max(std::min(std::min(i - 32 * (-1), 32 * 5 - i) * 4, 255), 0);//b
+            colorTable.at<cv::Vec3b>(i) = cv::Vec3b(b, g, r);
+        }
+        colorTableInitialized = true;
+    }
 
-bool check_directories_exist(const char* directory, const char* left_dir, const char* right_dir, const char* disparity_dir) {
-	char left_dir_sub[PATH_MAX];
-	char right_dir_sub[PATH_MAX];
-	char disparity_dir_sub[PATH_MAX];
-	sprintf(left_dir_sub, "%s/%s", directory, left_dir);
-	sprintf(right_dir_sub, "%s/%s", directory, right_dir);
-	sprintf(disparity_dir_sub, "%s/%s", directory, disparity_dir);
-
-	return directory_exists(left_dir_sub) && directory_exists(right_dir_sub) && directory_exists(disparity_dir_sub);
+    disparityColor.createSameSize(disparityGrey, CV_8UC3);
+    cv::Mat greyMat = disparityGrey.getMat();
+    cv::Mat colorMat = disparityColor.getMat();
+    for (int row = 0; row < greyMat.rows; row++)
+    {
+        for (int col = 0; col < greyMat.cols; col++)
+        {
+            uchar origin = greyMat.at<uchar>(row, col);
+            int originS = (int)(origin * 255.0 / MAX_DISPARITY);
+            //colorMat.at<Vec3b>(row, col) = Vec3b(255 - originS, min(originS, 255 - originS) * 2, originS);
+            colorMat.at<cv::Vec3b>(row, col) = colorTable.at<cv::Vec3b>(originS);
+        }
+    }
 }
 
 int main(int argc, char *argv[]) {
-	if(argc < 4) {
-		std::cerr << "Usage: cuda_sgm dir p1 p2" << std::endl;
-		return -1;
+	if(argc < 3) {
+		std::cerr << "Usage: sgm left_video right_video" << std::endl;
+		return EXIT_FAILURE;
 	}
 	if(MAX_DISPARITY != 128) {
 		std::cerr << "Due to implementation limitations MAX_DISPARITY must be 128" << std::endl;
-		return -1;
+		return EXIT_FAILURE;
 	}
 	if(PATH_AGGREGATION != 4 && PATH_AGGREGATION != 8) {
-                std::cerr << "Due to implementation limitations PATH_AGGREGATION must be 4 or 8" << std::endl;
-                return -1;
-        }
-	const char* directory = argv[1];
-	uint8_t p1, p2;
-	p1 = atoi(argv[2]);
-	p2 = atoi(argv[3]);
+        std::cerr << "Due to implementation limitations PATH_AGGREGATION must be 4 or 8" << std::endl;
+        return EXIT_FAILURE;
+    }
 
+	const char* left_video_path = argv[1];
+    const char* right_video_path = argv[2];
 
-	DIR *dp;
-	struct dirent *ep;
+    std::cout << left_video_path << std::endl;
 
-	// Directories
-	const char* left_dir = "left";
-	const char* disparity_dir = "disparities";
-	const char* right_dir = "right";
-	const char* gt_dir = "gt";
+    cv::VideoCapture left_video(left_video_path);
+    cv::VideoCapture right_video(right_video_path);
+    if (!left_video.isOpened() || !right_video.isOpened()) {
+        std::cerr << "open video file failed" << std::endl;
+    }
 
-	if(!check_directories_exist(directory, left_dir, right_dir, disparity_dir)) {
-		std::cerr << "We need <left>, <right> and <disparities> directories" << std::endl;
-		exit(EXIT_FAILURE);
-	}
-	char abs_left_dir[PATH_MAX];
-    sprintf(abs_left_dir, "%s/%s", directory, left_dir);
-	dp = opendir(abs_left_dir);
-	if (dp == NULL) {
-		std::cerr << "Invalid directory: " << abs_left_dir << std::endl;
-		exit(EXIT_FAILURE);
-	}
-	char left_file[PATH_MAX];
-	char right_file[PATH_MAX];
-	char dis_file[PATH_MAX];
-	char gt_file[PATH_MAX];
-	char gt_dir_sub[PATH_MAX];
-
-	sprintf(gt_dir_sub, "%s/%s", directory, gt_dir);
-	const bool has_gt = directory_exists(gt_dir_sub);
-	int n = 0;
-	int n_err = 0;
-	std::vector<float> times;
-
+    bool first_time = true;
     DisparityEstimation disparity_estimation;
+    Stixels stixles;
+    RoadEstimation road_estimation;
     disparity_estimation.Initialize(p1, p2);
-	while ((ep = readdir(dp)) != NULL) {
-		// Skip directories
-		if (!strcmp (ep->d_name, "."))
-			continue;
-		if (!strcmp (ep->d_name, ".."))
-			continue;
 
-		sprintf(left_file, "%s/%s/%s", directory, left_dir, ep->d_name);
-		sprintf(right_file, "%s/%s/%s", directory, right_dir, ep->d_name);
-		sprintf(dis_file, "%s/%s/%s", directory, disparity_dir, ep->d_name);
-		sprintf(gt_file, "%s/%s/%s", directory, gt_dir, ep->d_name);
-		size_t gt_len = strlen(gt_file);
+    cv::Mat left_frame, right_frame, left_frame1, right_frame1;
+    cv::Mat disparity_im, disparity_im_color;
+    cv::Size frame_size = cv::Size(0, 0);
+    cv::Size rect_size = cv::Size(0, 0);
+    cv::Rect rect_roi_up = cv::Rect(0, 0, 0, 0);
+    cv::Rect rect_roi_down = cv::Rect(0, 0, 0, 0);
 
-		cv::Mat h_im0 = cv::imread(left_file);
-		if(!h_im0.data) {
-			std::cerr << "Couldn't read the file " << left_file << std::endl;
-			return EXIT_FAILURE;
-		}
-		cv::Mat h_im1 = cv::imread(right_file);
-		if(!h_im1.data) {
-			std::cerr << "Couldn't read the file " << right_file << std::endl;
-			return EXIT_FAILURE;
-		}
+    cv::Mat mix_frame;
+    float camera_height;
+    float camera_tilt;
+    float alpha_ground;
+    int vhor;
 
-		// Convert images to grayscale
-		if (h_im0.channels()>1) {
-			cv::cvtColor(h_im0, h_im0, CV_RGB2GRAY);
-		}
+    cv::namedWindow("Test");
 
-		if (h_im1.channels()>1) {
-			cv::cvtColor(h_im1, h_im1, CV_RGB2GRAY);
-		}
-
-		if(h_im0.rows != h_im1.rows || h_im0.cols != h_im1.cols) {
-			std::cerr << "Both images must have the same dimensions" << std::endl;
-			return EXIT_FAILURE;
-		}
-		if(h_im0.rows % 4 != 0 || h_im0.cols % 4 != 0) {
-            std::cerr << "Due to implementation limitations image width and height must be a divisible by 4" << std::endl;
+    int currentFrame = 0;
+    while (true)
+    {
+        if (!left_video.read(left_frame) || !right_video.read(right_frame))
+        {
+            std::cerr << "Reach the end of video file" << std::endl;
+            return EXIT_SUCCESS;
+        }
+        currentFrame++;
+        if (left_frame.size() != right_frame.size()) {
+            std::cerr << "Both images must have the same dimensions" << std::endl;
             return EXIT_FAILURE;
-		}
+        }
 
-#if LOG
-		std::cout << "processing: " << left_file << std::endl;
-#endif
-		// Compute
-		float elapsed_time_ms;
-		cv::Mat disparity_im = disparity_estimation.Compute(h_im0, h_im1, &elapsed_time_ms);
-#if LOG
-		std::cout << "done" << std::endl;
-#endif
-		times.push_back(elapsed_time_ms);
+        if (left_frame.size() != frame_size)
+        {
+            frame_size = left_frame.size();
+            rect_size = cv::Size(frame_size.width / 4 * 4, frame_size.height / 4 * 4);
+            rect_roi_up = cv::Rect(0, 0, rect_size.width, rect_size.height);
+            rect_roi_down = cv::Rect(0, rect_size.height, rect_size.width, rect_size.height);
 
-		if(has_gt) {
-			disparity_errors(disparity_im, gt_file, &n, &n_err);
-		}
-#if WRITE_FILES
-	const int type = disparity_im.type();
-	const uchar depth = type & CV_MAT_DEPTH_MASK;
-	if(depth == CV_8U) {
-		cv::imwrite(dis_file, disparity_im);
-	} else {
-		cv::Mat disparity16(disparity_im.rows, disparity_im.cols, CV_16UC1);
-		for(int i = 0; i < disparity_im.rows; i++) {
-			for(int j = 0; j < disparity_im.cols; j++) {
-				const float d = disparity_im.at<float>(i, j)*256.0f;
-				disparity16.at<uint16_t>(i, j) = (uint16_t) d;
-			}
-		}
-		cv::imwrite(dis_file, disparity16);
-	}
-#endif
-	}
-	closedir(dp);
+            std::cout << "FrameSize:" << frame_size.height << "*" << frame_size.width << std::endl;
+            std::cout << "CutSize:" << rect_size.height << "*" << rect_size.width << std::endl;
+
+            mix_frame = cv::Mat::zeros(cv::Size(rect_size.width, rect_size.height * 2), CV_8UC3);
+
+            stixles.SetDisparityParameters(rect_size.height, rect_size.width, MAX_DISPARITY, sigma_disparity_object, sigma_disparity_ground, sigma_sky);
+            stixles.SetProbabilities(pout, pout_sky, pground_given_nexist, pobject_given_nexist, psky_given_nexist, pnexist_dis, pground, pobject, psky, pord, pgrav, pblg);
+            stixles.SetModelParameters(column_step, median_step, epsilon, range_objects_z, width_margin);
+            stixles.SetCameraParameters(0, focal, baseline, 0.0f, sigma_camera_tilt, 0.0f, sigma_camera_height, 0.0f);
+            stixles.Initialize();
+            road_estimation.Initialize(camera_center_y, baseline, focal, rect_size.height, rect_size.width, MAX_DISPARITY);
+        }
+
+        left_frame = left_frame(rect_roi_up);
+        right_frame = right_frame(rect_roi_up);
+        
+        if (left_frame.channels() > 1) {
+            cv::cvtColor(left_frame, left_frame1, CV_RGB2GRAY);
+        }
+            
+        if (right_frame.channels() > 1) {
+            cv::cvtColor(right_frame, right_frame1, CV_RGB2GRAY);
+        }
+        
+        float elapsed_time_ms;
+        disparity_im = disparity_estimation.Compute(left_frame1, right_frame1, &elapsed_time_ms);
+        std::cout << currentFrame << ":" << elapsed_time_ms << "ms" << std::endl;
+
+        float* disparityResultGPU = disparity_estimation.GetDisparityResultFloatGPU();
+        stixles.SetDisparityImage(disparityResultGPU);
+        const bool ok = road_estimation.Compute(disparityResultGPU);
+        if (!ok) {
+            printf("Can't compute road estimation\n");
+            first_time = false;
+            continue;
+        }
+
+        // Get Camera Parameters
+        camera_tilt = road_estimation.GetPitch();
+        camera_height = road_estimation.GetCameraHeight();
+        vhor = road_estimation.getHorizonPoint();
+        alpha_ground = road_estimation.GetSlope();
+
+        if (camera_tilt == 0 && camera_height == 0 && vhor == 0 && alpha_ground == 0) {
+            printf("Can't compute road estimation\n");
+            continue;
+        }
+
+        std::cout << "Camera Parameters -> Tilt: " << camera_tilt << " Height: " << camera_height << " vHor: " << vhor << " alpha_ground: " << alpha_ground << std::endl;
+
+        if (camera_height < 0 || camera_height > 5 || vhor < 0 || alpha_ground < 0) {
+            printf("Error happened in computing road estimation\n");
+            continue;
+        }
+
+        stixles.SetCameraParameters(vhor, focal, baseline, camera_tilt, sigma_camera_tilt, camera_height, sigma_camera_height, alpha_ground);
+        
+        elapsed_time_ms = stixles.Compute();
+        Section *stx = stixles.GetStixels();
+        int max_segments = stixles.GetMaxSections();
+
+        cv::Mat left_frame_stx;
+        left_frame.copyTo(left_frame_stx);
+
+        std::vector<std::vector<Section>> stixels;
+        stixels.resize(stixles.GetRealCols());
+
+        for (size_t i = 0; i < stixels.size(); i++) {
+            for (size_t j = 0; j < max_segments; j++) {
+                Section section = stx[i*max_segments + j];
+                if (section.type == -1) {
+                    break;
+                }
+                // If disparity is 0 it is sky
+                if (section.type == OBJECT && section.disparity < 1.0f) {
+                    section.type = SKY;
+                }
+                stixels[i].push_back(section);
+            }
+            // Column finished
+        }
+
+        for (size_t i = 0; i < stixels.size(); i++) {
+            std::vector<Section> column = stixels.at(i);
+            Section prev;
+            prev.type = -1;
+            bool have_prev = false;
+            for (size_t j = 0; j < column.size(); j++) {
+                Section sec = column.at(j);
+                sec.vB = left_frame_stx.rows - 1 - sec.vB;
+                sec.vT = left_frame_stx.rows - 1 - sec.vT;
+
+                // If disparity is 0 it is sky
+                if (sec.type == OBJECT && sec.disparity < 1.0f) {
+                    sec.type = SKY;
+                }
+
+                // Sky on top of sky
+                if (j > 0) {
+                    if (!have_prev) {
+                        prev = column.at(j - 1);
+                        prev.vB = left_frame_stx.rows - 1 - prev.vB;
+                        prev.vT = left_frame_stx.rows - 1 - prev.vT;
+                    }
+
+                    if (sec.type == SKY && prev.type == SKY) {
+                        sec.vT = prev.vT;
+                        have_prev = true;
+                    }
+                    else {
+                        have_prev = false;
+                    }
+                }
+
+                // If the next segment is a sky, skip current
+                if (j + 1 < column.size() && sec.type == SKY && column.at(j + 1).type == SKY) {
+                    continue;
+                }
+                // Don't show ground
+                if (sec.type != GROUND) {
+                    const int x = i*column_step + width_margin;
+                    const int y = sec.vT;
+                    const int width = column_step;
+                    int height = sec.vB - sec.vT + 1;
+
+                    cv::Mat roi = left_frame_stx(cv::Rect(x, y, width, height));
+
+                    // Sky = blue
+                    int cr = 0;
+                    int cg = 0;
+                    int cb = 255;
+
+                    // Object = from green to red (far to near)
+                    if (sec.type == OBJECT) {
+                        const float dis = (max_dis_display - sec.disparity) / max_dis_display;
+                        float dis_f = dis;
+                        if (dis_f < 0.0f) {
+                            dis_f = 0.0f;
+                        }
+                        const float h = dis_f*0.3f;
+                        const float s = 1.0f;
+                        const float v = 1.0f;
+
+                        HSV_to_RGB(h, s, v, &cr, &cg, &cb);
+                    }
+
+                    cv::Mat color;
+                    const int top = (roi.rows < 2) ? 0 : 1;
+                    const int bottom = (roi.rows < 2) ? 0 : 1;
+                    const int left = 1;
+                    const int right = 1;
+
+                    color.create(roi.rows - top - bottom, roi.cols - left - right, roi.type());
+                    color.setTo(cv::Scalar(cb, cg, cr));
+
+                    cv::Mat color_padded;
+                    color_padded.create(roi.rows, roi.cols, color.type());
+
+                    copyMakeBorder(color, color_padded, top, bottom, left, right, cv::BORDER_CONSTANT, cv::Scalar(255, 255, 255));
+                    const double alpha = 0.6;
+                    cv::addWeighted(color_padded, alpha, roi, 1.0 - alpha, 0.0, roi);
+
+                }
+            }
+        }
+        if (vhor != -1) {
+            // Draw Horizon Line
+            int thickness = 2;
+            int lineType = 8;
+            line(left_frame_stx,
+                cv::Point(0, vhor),
+                cv::Point(left_frame_stx.cols - 1, vhor),
+                cv::Scalar(0, 0, 0),
+                thickness,
+                lineType);
+        }
+
+        //MIX IMGS TOGETHER
+        //left_frame.copyTo(mix_frame(rect_roi_up));
+        //cv::cvtColor(disparity_im, disparity_im_color, CV_GRAY2BGR);
+        left_frame_stx.copyTo(mix_frame(rect_roi_up));
+        ColorizeDisparityMap(disparity_im, disparity_im_color);
+        disparity_im_color.copyTo(mix_frame(rect_roi_down));
+        cv::imshow("Test", mix_frame);
+
+        int c = cv::waitKey(100);
+        if ((char)c == 27) break;
+        if (c > 0) cv::waitKey(0);
+
+    }
+
+    stixles.Finish();
+    road_estimation.Finish();
     disparity_estimation.Finish();
-
-	double mean = std::accumulate(times.begin(), times.end(), 0.0) / times.size();
-	if(has_gt) {
-		printf("%f\n", (float) n_err/n);
-        std::cout << "It took an average of " << mean << " miliseconds, " << 1000.0f / mean << " fps" << std::endl;
-	} else {
-		std::cout << "It took an average of " << mean << " miliseconds, " << 1000.0f/mean << " fps" << std::endl;
-	}
-
 	return 0;
 }

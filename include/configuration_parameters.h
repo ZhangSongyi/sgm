@@ -1,7 +1,13 @@
-#ifndef CONFIGURATION_ROAD_ESTIMATION_H_
-#define CONFIGURATION_ROAD_ESTIMATION_H_
+#ifndef CONFIGURATION_PARAMETERS_H_
+#define CONFIGURATION_PARAMETERS_H_
 
 #include <stdint.h>
+/**
+ ** DISPARITY PARAMETERS CONFIGURATION
+ **/
+ const int p1 = 32;
+ const int p2 = 128;
+
 /**
  ** ROAD ESTIMATION CONFIGURATION
  **/
@@ -36,16 +42,15 @@ const float camera_center_y = 224.2f;
 const int column_step = 5;
 const int width_margin = 0;
 
-float camera_tilt;
 const float sigma_camera_tilt = 0.05f;
-float camera_height;
 const float sigma_camera_height = 0.05f;
 const float camera_center_x = 651.216186523f;
-float alpha_ground;
 
 /* Model Parameters */
 const bool median_step = false;
 const float epsilon = 3.0f;
 const float range_objects_z = 10.20f; // in meters
 
-#endif /* CONFIGURATION_ROAD_ESTIMATION_H_ */
+const float max_dis_display = (float)30;
+
+#endif /* CONFIGURATION_PARAMETERS_H_ */
