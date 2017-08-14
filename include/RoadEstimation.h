@@ -37,7 +37,7 @@ public:
     float GetCameraHeight();
     float GetPitch();
     float GetSlope();
-    int getHorizonPoint();
+    int GetHorizonPoint();
 private:
     class RoadEstimationImpl;
     std::auto_ptr<RoadEstimationImpl> m_impl;

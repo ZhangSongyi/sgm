@@ -18,8 +18,23 @@
 
 **/
 
-#include "MedianFilterKernels.cuh"
+#include "ImageProcessorKernels.cuh"
+#include "configuration.h"
 
 __global__ void MedianFilter3x3(const uint8_t* __restrict__ d_input, uint8_t* __restrict__ d_out, const uint32_t rows, const uint32_t cols) {
 	MedianFilter<3>(d_input, d_out, rows, cols);
+}
+
+__global__ void ColorizeDisparityImage(const uint8_t* __restrict__ d_input, uint8_t* __restrict__ d_out, uint8_t* __restrict__ d_color_table, const uint32_t rows, const uint32_t cols)
+{
+    const uint32_t idx = blockIdx.x*blockDim.x + threadIdx.x;
+    const uint32_t row = idx / cols;
+    const uint32_t col = idx % cols;
+
+    if (row < rows && col < cols) {
+        const int disp = d_input[idx];
+        d_out[idx * 3] = d_color_table[disp * 3];
+        d_out[idx * 3 + 1] = d_color_table[disp * 3 + 1];
+        d_out[idx * 3 + 2] = d_color_table[disp * 3 + 2];
+    }
 }

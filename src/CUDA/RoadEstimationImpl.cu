@@ -38,7 +38,7 @@ public:
     float GetCameraHeight() {return m_cameraHeight;};
     float GetPitch() {return m_pitch;};
     float GetSlope() {return m_slope;};
-    int getHorizonPoint() {return m_horizonPoint;};
+    int GetHorizonPoint() {return m_horizonPoint;};
 private:
     void ComputeCameraProperties(cv::Mat vDisp, const float rho, const float theta, float& horizonPoint,
         float& pitch, float& cameraHeight, float& slope) const;
@@ -139,7 +139,7 @@ bool RoadEstimation::RoadEstimationImpl::Compute(const pixel_t *im) {
 	CUDA_CHECK_RETURN(cudaMemset(d_vDisp, 0, m_max_dis*m_rows*sizeof(int)));
 
 	// Compute the vDisparity histogram
-	CUDA_CHECK_RETURN(cudaMemcpy(d_disparity, im, m_rows*m_cols*sizeof(pixel_t), cudaMemcpyHostToDevice));
+	CUDA_CHECK_RETURN(cudaMemcpy(d_disparity, im, m_rows*m_cols*sizeof(pixel_t), cudaMemcpyDeviceToDevice));
 	ComputeHistogram<<<(m_rows*m_cols+256-1)/256, 256>>>(d_disparity, d_vDisp, m_rows, m_cols, m_max_dis);
 	ComputeMaximum<<<(m_rows*m_max_dis+256-1)/256, 256>>>(d_vDisp, d_maximum, m_rows, m_max_dis);
 	ComputeBinaryImage<<<(m_rows*m_max_dis+256-1)/256, 256>>>(d_vDisp, d_vDispBinary, d_maximum, m_binThr,
@@ -235,6 +235,6 @@ float RoadEstimation::GetSlope() {
     return m_impl->GetSlope();
 }
 
-int RoadEstimation::getHorizonPoint() {
-    return m_impl->getHorizonPoint();
+int RoadEstimation::GetHorizonPoint() {
+    return m_impl->GetHorizonPoint();
 }

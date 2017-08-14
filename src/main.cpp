@@ -110,37 +110,6 @@ void HSV_to_RGB(const float h, const float s, const float v, int *cr, int *cg, i
 cv::Mat colorTable;
 bool colorTableInitialized = false;
 
-void ColorizeDisparityMap(cv::InputArray disparityGrey, cv::OutputArray disparityColor)
-{
-    if (!colorTableInitialized)
-    {
-        colorTable.create(cv::Size(256, 1), CV_8UC3);
-        for (int i = 0; i < 256; i++)
-        {
-            int r, g, b;
-            r = std::max(std::min(std::min(i - 32 * 3, 32 * 9 - i) * 4, 255), 0);//r
-            g = std::max(std::min(std::min(i - 32 * 1, 32 * 7 - i) * 4, 255), 0);//g
-            b = std::max(std::min(std::min(i - 32 * (-1), 32 * 5 - i) * 4, 255), 0);//b
-            colorTable.at<cv::Vec3b>(i) = cv::Vec3b(b, g, r);
-        }
-        colorTableInitialized = true;
-    }
-
-    disparityColor.createSameSize(disparityGrey, CV_8UC3);
-    cv::Mat greyMat = disparityGrey.getMat();
-    cv::Mat colorMat = disparityColor.getMat();
-    for (int row = 0; row < greyMat.rows; row++)
-    {
-        for (int col = 0; col < greyMat.cols; col++)
-        {
-            uchar origin = greyMat.at<uchar>(row, col);
-            int originS = (int)(origin * 255.0 / MAX_DISPARITY);
-            //colorMat.at<Vec3b>(row, col) = Vec3b(255 - originS, min(originS, 255 - originS) * 2, originS);
-            colorMat.at<cv::Vec3b>(row, col) = colorTable.at<cv::Vec3b>(originS);
-        }
-    }
-}
-
 int main(int argc, char *argv[]) {
 	if(argc < 3) {
 		std::cerr << "Usage: sgm left_video right_video" << std::endl;
@@ -170,7 +139,8 @@ int main(int argc, char *argv[]) {
     DisparityEstimation disparity_estimation;
     Stixels stixles;
     RoadEstimation road_estimation;
-    disparity_estimation.Initialize(p1, p2);
+    disparity_estimation.Initialize();
+    disparity_estimation.SetParameter(p1, p2);
 
     cv::Mat left_frame, right_frame, left_frame1, right_frame1;
     cv::Mat disparity_im, disparity_im_color;
@@ -231,24 +201,25 @@ int main(int argc, char *argv[]) {
         if (right_frame.channels() > 1) {
             cv::cvtColor(right_frame, right_frame1, CV_RGB2GRAY);
         }
-        
-        float elapsed_time_ms;
-        disparity_im = disparity_estimation.Compute(left_frame1, right_frame1, &elapsed_time_ms);
-        std::cout << currentFrame << ":" << elapsed_time_ms << "ms" << std::endl;
 
-        float* disparityResultGPU = disparity_estimation.GetDisparityResultFloatGPU();
-        stixles.SetDisparityImage(disparityResultGPU);
-        const bool ok = road_estimation.Compute(disparityResultGPU);
+        disparity_estimation.LoadImages(left_frame1, right_frame1);
+        float elapsed_time_ms;
+        disparity_estimation.Compute(&elapsed_time_ms);
+        std::cout << currentFrame << ":" << elapsed_time_ms << "ms" << std::endl;
+        disparity_im = disparity_estimation.FetchDisparityResult();
+        disparity_im_color = disparity_estimation.FetchColoredDisparityResult();
+        pixel_t* disparityResultPixelD = disparity_estimation.FetchDisparityResultPixelD();
+        stixles.SetDisparityImage(disparityResultPixelD);
+        const bool ok = road_estimation.Compute(disparityResultPixelD);
         if (!ok) {
             printf("Can't compute road estimation\n");
-            first_time = false;
             continue;
         }
 
         // Get Camera Parameters
         camera_tilt = road_estimation.GetPitch();
         camera_height = road_estimation.GetCameraHeight();
-        vhor = road_estimation.getHorizonPoint();
+        vhor = road_estimation.GetHorizonPoint();
         alpha_ground = road_estimation.GetSlope();
 
         if (camera_tilt == 0 && camera_height == 0 && vhor == 0 && alpha_ground == 0) {
@@ -389,7 +360,6 @@ int main(int argc, char *argv[]) {
         //left_frame.copyTo(mix_frame(rect_roi_up));
         //cv::cvtColor(disparity_im, disparity_im_color, CV_GRAY2BGR);
         left_frame_stx.copyTo(mix_frame(rect_roi_up));
-        ColorizeDisparityMap(disparity_im, disparity_im_color);
         disparity_im_color.copyTo(mix_frame(rect_roi_down));
         cv::imshow("Test", mix_frame);
 
