@@ -272,7 +272,7 @@ int main(int argc, char *argv[]) {
         cv::Mat left_frame_stx;
         left_frame.copyTo(left_frame_stx);
 
-        std::vector<std::vector<Section>> stixels;
+        std::vector< std::vector<Section> > stixels;
         stixels.resize(stixles.GetRealCols());
 
         for (size_t i = 0; i < stixels.size(); i++) {
