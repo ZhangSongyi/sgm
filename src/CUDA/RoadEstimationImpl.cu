@@ -179,7 +179,7 @@ bool RoadEstimation::RoadEstimationImpl::ComputeHough(uint8_t *d_vDispBinary, fl
 
 		//printf("%f (%f %f) %f (%f %f)\n", pitch, m_minPitch, m_maxPitch, cameraHeight, m_minCameraHeight, m_maxCameraHeight);
 		//if (pitch>=m_minPitch && pitch<=m_maxPitch && cameraHeight>=m_minCameraHeight && cameraHeight<=m_maxCameraHeight) {
-		if (pitch>=m_minPitch && pitch<=m_maxPitch) {
+		if (pitch>=m_minPitch && pitch<=m_maxPitch && cameraHeight >= m_minCameraHeight && cameraHeight <= m_maxCameraHeight) {
 			return true;
 		}
 	}
