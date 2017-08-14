@@ -100,7 +100,6 @@ void DisparityEstimation::DisparityEstimationImpl::Initialize() {
         h_color_table[i * 3 + 0] = std::max(std::min((int)(std::min(i - color_table_section * (-1), color_table_section * 5 - i) * scale_factor), 255), 0);//b
         h_color_table[i * 3 + 1] = std::max(std::min((int)(std::min(i - color_table_section * 1,    color_table_section * 7 - i) * scale_factor), 255), 0);//g
         h_color_table[i * 3 + 2] = std::max(std::min((int)(std::min(i - color_table_section * 3,    color_table_section * 9 - i) * scale_factor), 255), 0);//r
-        std::cout << (int)h_color_table[i * 3 + 1] << ",";
     }
     // Create streams
     CUDA_CHECK_RETURN(cudaStreamCreate(&stream1));

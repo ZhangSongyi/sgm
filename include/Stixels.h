@@ -22,6 +22,7 @@
 #include <opencv2/opencv.hpp>
 #include <memory>
 #include "configuration.h"
+#include "struct.h"
 
 #ifndef STIXELS_H_
 #define STIXELS_H_
@@ -34,12 +35,6 @@
 #define GROUND	0
 #define OBJECT	1
 #define SKY		2
-
-struct Section {
-	int type;
-	int vB, vT;
-	float disparity;
-};
 
 struct StixelParameters {
 	int vhor;

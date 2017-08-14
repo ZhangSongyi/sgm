@@ -140,7 +140,9 @@ int main(int argc, char *argv[]) {
     Stixels stixles;
     RoadEstimation road_estimation;
     disparity_estimation.Initialize();
+    road_estimation.Initialize();
     disparity_estimation.SetParameter(p1, p2);
+    road_estimation.SetCameraParameters(camera_parameters);
 
     cv::Mat left_frame, right_frame, left_frame1, right_frame1;
     cv::Mat disparity_im, disparity_im_color;
@@ -150,10 +152,7 @@ int main(int argc, char *argv[]) {
     cv::Rect rect_roi_down = cv::Rect(0, 0, 0, 0);
 
     cv::Mat mix_frame;
-    float camera_height;
-    float camera_tilt;
-    float alpha_ground;
-    int vhor;
+    EstimatedCameraParameters estimated_camera_parameters;
 
     cv::namedWindow("Test");
 
@@ -186,9 +185,8 @@ int main(int argc, char *argv[]) {
             stixles.SetDisparityParameters(rect_size.height, rect_size.width, MAX_DISPARITY, sigma_disparity_object, sigma_disparity_ground, sigma_sky);
             stixles.SetProbabilities(pout, pout_sky, pground_given_nexist, pobject_given_nexist, psky_given_nexist, pnexist_dis, pground, pobject, psky, pord, pgrav, pblg);
             stixles.SetModelParameters(column_step, median_step, epsilon, range_objects_z, width_margin);
-            stixles.SetCameraParameters(0, focal, baseline, 0.0f, sigma_camera_tilt, 0.0f, sigma_camera_height, 0.0f);
+            stixles.SetCameraParameters(0, camera_parameters.focal, camera_parameters.baseline, 0.0f, sigma_camera_tilt, 0.0f, sigma_camera_height, 0.0f);
             stixles.Initialize();
-            road_estimation.Initialize(camera_center_y, baseline, focal, rect_size.height, rect_size.width, MAX_DISPARITY);
         }
 
         left_frame = left_frame(rect_roi_up);
@@ -210,31 +208,31 @@ int main(int argc, char *argv[]) {
         disparity_im_color = disparity_estimation.FetchColoredDisparityResult();
         pixel_t* disparityResultPixelD = disparity_estimation.FetchDisparityResultPixelD();
         stixles.SetDisparityImage(disparityResultPixelD);
-        const bool ok = road_estimation.Compute(disparityResultPixelD);
+        road_estimation.LoadImagesD(disparityResultPixelD, rect_size);
+        const bool ok = road_estimation.Compute();
         if (!ok) {
             printf("Can't compute road estimation\n");
             continue;
         }
 
         // Get Camera Parameters
-        camera_tilt = road_estimation.GetPitch();
-        camera_height = road_estimation.GetCameraHeight();
-        vhor = road_estimation.GetHorizonPoint();
-        alpha_ground = road_estimation.GetSlope();
+        estimated_camera_parameters = road_estimation.FetchEstimatedCameraParameters();
 
-        if (camera_tilt == 0 && camera_height == 0 && vhor == 0 && alpha_ground == 0) {
+        if (estimated_camera_parameters.pitch == 0 && estimated_camera_parameters.cameraHeight == 0 && estimated_camera_parameters.horizonPoint == 0 && estimated_camera_parameters.slope == 0) {
             printf("Can't compute road estimation\n");
             continue;
         }
 
-        std::cout << "Camera Parameters -> Tilt: " << camera_tilt << " Height: " << camera_height << " vHor: " << vhor << " alpha_ground: " << alpha_ground << std::endl;
+        std::cout << "Camera Parameters -> Tilt: " << estimated_camera_parameters.pitch << " Height: " << estimated_camera_parameters.cameraHeight << " vHor: " << estimated_camera_parameters.horizonPoint << " alpha_ground: " << estimated_camera_parameters.slope << std::endl;
 
-        if (camera_height < 0 || camera_height > 5 || vhor < 0 || alpha_ground < 0) {
+        if (estimated_camera_parameters.cameraHeight < 0 || estimated_camera_parameters.cameraHeight > 5 ||
+            estimated_camera_parameters.horizonPoint < 0 || estimated_camera_parameters.slope < 0) {
             printf("Error happened in computing road estimation\n");
             continue;
         }
 
-        stixles.SetCameraParameters(vhor, focal, baseline, camera_tilt, sigma_camera_tilt, camera_height, sigma_camera_height, alpha_ground);
+        stixles.SetCameraParameters(estimated_camera_parameters.horizonPoint, camera_parameters.focal, camera_parameters.baseline, estimated_camera_parameters.pitch,
+            sigma_camera_tilt, estimated_camera_parameters.cameraHeight, sigma_camera_height, estimated_camera_parameters.slope);
         
         elapsed_time_ms = stixles.Compute();
         Section *stx = stixles.GetStixels();
@@ -344,13 +342,13 @@ int main(int argc, char *argv[]) {
                 }
             }
         }
-        if (vhor != -1) {
+        if (estimated_camera_parameters.horizonPoint != -1) {
             // Draw Horizon Line
             int thickness = 2;
             int lineType = 8;
             line(left_frame_stx,
-                cv::Point(0, vhor),
-                cv::Point(left_frame_stx.cols - 1, vhor),
+                cv::Point(0, estimated_camera_parameters.horizonPoint),
+                cv::Point(left_frame_stx.cols - 1, estimated_camera_parameters.horizonPoint),
                 cv::Scalar(0, 0, 0),
                 thickness,
                 lineType);

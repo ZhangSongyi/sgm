@@ -2,6 +2,7 @@
 #define CONFIGURATION_PARAMETERS_H_
 
 #include <stdint.h>
+#include "struct.h"
 /**
  ** DISPARITY PARAMETERS CONFIGURATION
  **/
@@ -35,10 +36,14 @@ const float pground = 1.0f / 3.0f;
 const float pobject = 1.0f / 3.0f;
 const float psky = 1.0f / 3.0f;
 
+const struct CameraParameters camera_parameters = {
+    /*cameraCenterX = */ 651.216186523f,
+    /*cameraCenterY = */ 224.2f,
+    /*baseline      = */ 0.643f,
+    /*focal         = */ 960.0f
+};
+
 // Virtual parameters
-const float focal = 960.0f;
-const float baseline = 0.643f;
-const float camera_center_y = 224.2f;
 const int column_step = 5;
 const int width_margin = 0;
 

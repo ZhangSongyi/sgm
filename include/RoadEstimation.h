@@ -24,20 +24,20 @@
 #include <opencv2/opencv.hpp>
 #include <memory>
 #include "configuration.h"
+#include "struct.h"
 
 class RoadEstimation
 {
 public:
 	RoadEstimation();
 	~RoadEstimation();
-	void Initialize(const float camera_center_y, const float baseline, const float focal, const int rows,
-    		const int cols, const int max_dis);
-	bool Compute(const pixel_t *im);
+	void Initialize();
+    void SetCameraParameters(const CameraParameters param);
+    void LoadImages(const pixel_t* m_disp, cv::Size imageSize);
+    void LoadImagesD(pixel_t* d_disp, cv::Size imageSize);
+	bool Compute();
 	void Finish();
-    float GetCameraHeight();
-    float GetPitch();
-    float GetSlope();
-    int GetHorizonPoint();
+    EstimatedCameraParameters FetchEstimatedCameraParameters();
 private:
     class RoadEstimationImpl;
     std::auto_ptr<RoadEstimationImpl> m_impl;
