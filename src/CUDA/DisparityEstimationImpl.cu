@@ -47,6 +47,9 @@ public:
     pixel_t * FetchDisparityResultPixelD();
     void Finish();
 
+private:
+    void LoadImagesCore(const uint8_t* d_left, const uint8_t* d_right, cv::Size imageSize, cudaMemcpyKind dir);
+
 private: /*CUDA Host Pointer*/
     uint8_t *h_disparity;
     uint8_t *h_disparity_colored;
@@ -58,8 +61,6 @@ private: /*CUDA Device Pointer*/
     cudaStream_t stream1, stream2, stream3;//, stream4, stream5, stream6, stream7, stream8;
     uint8_t *d_im0;
     uint8_t *d_im1;
-    uint8_t *d_im0_input;
-    uint8_t *d_im1_input;
     cost_t *d_transform0;
     cost_t *d_transform1;
     uint8_t *d_cost;
@@ -124,29 +125,7 @@ void DisparityEstimation::DisparityEstimationImpl::SetColorTable(const uint8_t c
     CUDA_CHECK_RETURN(cudaMemcpyAsync(d_im0, color_table, MAX_DISPARITY * 3, cudaMemcpyHostToDevice, stream1));
 }
 
-void DisparityEstimation::DisparityEstimationImpl::LoadImages(cv::Mat left, cv::Mat right)
-{
-    if (cols != left.cols || rows != left.rows) {
-        debug_log("WARNING: cols or rows are different");
-        if (!first_alloc) {
-            debug_log("Freeing memory");
-            free_memory();
-        }
-        first_alloc = false;
-        cols = left.cols;
-        rows = left.rows;
-        size = rows*cols;
-        size_cube_l = size*MAX_DISPARITY;
-        malloc_memory();
-    }
-    debug_log("Copying images to the GPU");
-    CUDA_CHECK_RETURN(cudaMemcpyAsync(d_im0, left.ptr<uint8_t>(), sizeof(uint8_t)*size, cudaMemcpyHostToDevice, stream1));
-    CUDA_CHECK_RETURN(cudaMemcpyAsync(d_im1, right.ptr<uint8_t>(), sizeof(uint8_t)*size, cudaMemcpyHostToDevice, stream1));
-    d_im0_input = d_im0;
-    d_im1_input = d_im1;
-}
-
-void DisparityEstimation::DisparityEstimationImpl::LoadImagesD(uint8_t* d_left, uint8_t* d_right, cv::Size imageSize)
+inline void DisparityEstimation::DisparityEstimationImpl::LoadImagesCore(const uint8_t* left, const uint8_t* right, cv::Size imageSize, cudaMemcpyKind dir)
 {
     if (cols != imageSize.width || rows != imageSize.height) {
         debug_log("WARNING: cols or rows are different");
@@ -161,9 +140,16 @@ void DisparityEstimation::DisparityEstimationImpl::LoadImagesD(uint8_t* d_left, 
         size_cube_l = size*MAX_DISPARITY;
         malloc_memory();
     }
+    CUDA_CHECK_RETURN(cudaMemcpyAsync(d_im0, left, sizeof(uint8_t)*size, dir, stream1));
+    CUDA_CHECK_RETURN(cudaMemcpyAsync(d_im1, right, sizeof(uint8_t)*size, dir, stream1));
+}
 
-    d_im0_input = d_left;
-    d_im1_input = d_right;
+void DisparityEstimation::DisparityEstimationImpl::LoadImages(cv::Mat left, cv::Mat right) {
+    LoadImagesCore(left.ptr<uint8_t>(), right.ptr<uint8_t>(), left.size(), cudaMemcpyHostToDevice);
+}
+
+void DisparityEstimation::DisparityEstimationImpl::LoadImagesD(uint8_t* d_left, uint8_t* d_right, cv::Size imageSize) {
+    LoadImagesCore(d_left, d_right, imageSize, cudaMemcpyDeviceToDevice);
 }
 
 void DisparityEstimation::DisparityEstimationImpl::Compute(float *elapsed_time_ms) {
@@ -181,7 +167,7 @@ void DisparityEstimation::DisparityEstimationImpl::Compute(float *elapsed_time_m
 	grid_size.y = (rows+block_size.y-1) / block_size.y;
 
 	debug_log("Calling CSCT");
-	CenterSymmetricCensusKernelSM2<<<grid_size, block_size, 0, stream1>>>(d_im0_input, d_im1_input, d_transform0, d_transform1, rows, cols);
+	CenterSymmetricCensusKernelSM2<<<grid_size, block_size, 0, stream1>>>(d_im0, d_im1, d_transform0, d_transform1, rows, cols);
 
 	// Hamming distance
 	CUDA_CHECK_RETURN(cudaStreamSynchronize(stream1));
