@@ -45,8 +45,7 @@ public:
     void Finish();
     void SetDisparityImage(pixel_t *disp_im);
     void SetProbabilities(ProbabilitiesParameters params);
-    void SetCameraParameters(int vhor, float focal, float baseline, float camera_tilt,
-        float sigma_camera_tilt, float camera_height, float sigma_camera_height, float alpha_ground);
+    void SetCameraParameters(CameraParameters camera_params, EstimatedCameraParameters estimated_camera_params);
     void SetDisparityParameters(const int rows, const int cols, const int max_dis,
         const float sigma_disparity_object, const float sigma_disparity_ground, float sigma_sky);
     void SetModelParameters(const int column_step, const bool median_step, float epsilon, float range_objects_z,
@@ -239,13 +238,13 @@ void Stixels::StixelsImpl::Initialize() {
 	m_params.inv_sigma2_sky = m_inv_sigma2_sky;
     m_params.exportProbabilitiesParameters = ComputeProbabilitiesParameters(
         m_probabilities_params, m_max_dis, m_rows);
-	m_params.baseline = m_baseline;
-	m_params.focal = m_focal;
+	m_params.cameraParameters.baseline = m_baseline;
+	m_params.cameraParameters.focal = m_focal;
 	m_params.range_objects_z = m_range_objects_z;
-	m_params.pord = m_probabilities_params.ord;
+	m_params.probabilitiesParameters.ord = m_probabilities_params.ord;
 	m_params.epsilon = m_epsilon;
-	m_params.pgrav = m_probabilities_params.grav;
-	m_params.pblg = m_probabilities_params.blg;
+	m_params.probabilitiesParameters.grav = m_probabilities_params.grav;
+	m_params.probabilitiesParameters.blg = m_probabilities_params.blg;
 	m_params.rows_power2 = rows_power2;
 	m_params.max_sections = m_max_sections;
 	m_params.max_dis_log = m_max_dis_log;
@@ -321,17 +320,16 @@ ExportProbabilitiesParameters Stixels::StixelsImpl::ComputeProbabilitiesParamete
     return ex_params;
 }
 
-void Stixels::StixelsImpl::SetCameraParameters(int vhor, float focal, float baseline, float camera_tilt,
-		float sigma_camera_tilt, float camera_height, float sigma_camera_height, float alpha_ground) {
-	m_vhor = m_rows-vhor-1;
-	m_focal = focal;
-	m_baseline = baseline;
-	m_camera_tilt = camera_tilt;
+void Stixels::StixelsImpl::SetCameraParameters(CameraParameters camera_params, EstimatedCameraParameters estimated_camera_params) {
+	m_vhor = m_rows-estimated_camera_params.horizonPoint-1;
+	m_focal = camera_params.focal;
+	m_baseline = camera_params.baseline;
+	m_camera_tilt = estimated_camera_params.pitch;
 	// Degrees to radians
-	m_sigma_camera_tilt = sigma_camera_tilt*(PIFLOAT)/180.0f;
-	m_camera_height = camera_height;
-	m_sigma_camera_height = sigma_camera_height;
-	m_alpha_ground = alpha_ground;
+	m_sigma_camera_tilt = estimated_camera_params.sigmaCameraTilt;
+	m_camera_height = estimated_camera_params.cameraHeight;
+	m_sigma_camera_height = estimated_camera_params.sigmaCameraHeight;
+	m_alpha_ground = estimated_camera_params.slope;
 }
 
 void Stixels::StixelsImpl::SetDisparityParameters(const int rows, const int cols, const int max_dis,
@@ -378,7 +376,7 @@ float Stixels::StixelsImpl::Compute() {
 	    printf("Error: %s %d\n", cudaGetErrorString(err), err);
 	}
 
-	m_params.vhor = m_vhor;
+	m_params.estimatedCameraParameters.horizonPoint = m_vhor;
 
 	ComputeObjectLUT<<<m_realcols, 512>>>(d_disparity, d_obj_cost_lut, d_object_lut, m_params,
 			(int) powf(2, ceilf(log2f(m_rows))));
@@ -556,10 +554,8 @@ void Stixels::SetProbabilities(ProbabilitiesParameters params) {
     m_impl->SetProbabilities(params);
 }
 
-void Stixels::SetCameraParameters(int vhor, float focal, float baseline, float camera_tilt,
-    float sigma_camera_tilt, float camera_height, float sigma_camera_height, float alpha_ground) {
-    m_impl->SetCameraParameters(vhor, focal, baseline, camera_tilt,
-        sigma_camera_tilt, camera_height, sigma_camera_height, alpha_ground);
+void Stixels::SetCameraParameters(CameraParameters camera_params, EstimatedCameraParameters estimated_camera_params) {
+    m_impl->SetCameraParameters(camera_params, estimated_camera_params);
 }
 
 void Stixels::SetDisparityParameters(const int rows, const int cols, const int max_dis,
