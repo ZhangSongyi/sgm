@@ -45,8 +45,7 @@ public:
 	void Finish();
     void LoadDisparityImage(const pixel_t* m_disp, cv::Size imageSize, EstimatedCameraParameters estimated_camera_params);
     void LoadDisparityImageD(pixel_t* d_disp, cv::Size imageSize, EstimatedCameraParameters estimated_camera_params);
-    void SetDisparityParameters(const int rows, const int cols,
-        DisparityParameters disparity_parameters);
+    void UpdateImageSize(cv::Size image_size);
     void SetParameters(
         ProbabilitiesParameters probabilities_params,
         CameraParameters camera_params,

@@ -184,7 +184,7 @@ int main(int argc, char *argv[]) {
 
             mix_frame = cv::Mat::zeros(cv::Size(rect_size.width, rect_size.height * 2), CV_8UC3);
 
-            stixles.SetDisparityParameters(rect_size.height, rect_size.width, disparity_parameters);
+            stixles.UpdateImageSize(rect_size);
         }
 
         left_frame = left_frame(rect_roi_up);
@@ -229,7 +229,6 @@ int main(int argc, char *argv[]) {
         }
 
         stixles.LoadDisparityImageD(disparityResultPixelD, rect_size, estimated_camera_parameters);
-        //stixles.SetDisparityImage(disparityResultPixelD);
         elapsed_time_ms = stixles.Compute();
         Section *stx = stixles.FetchStixels();
 
