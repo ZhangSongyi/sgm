@@ -141,9 +141,10 @@ int main(int argc, char *argv[]) {
     RoadEstimation road_estimation;
     disparity_estimation.Initialize();
     road_estimation.Initialize();
+    stixles.Initialize();
     disparity_estimation.SetParameter(p1, p2);
     road_estimation.SetCameraParameters(camera_parameters);
-    //stixles.SetParameters(probabilities_parameters, camera_parameters, disparity_parameters, stixel_model_parameters);
+    stixles.SetParameters(probabilities_parameters, camera_parameters, disparity_parameters, stixel_model_parameters);
 
     cv::Mat left_frame, right_frame, left_frame1, right_frame1;
     cv::Mat disparity_im, disparity_im_color;
@@ -184,10 +185,6 @@ int main(int argc, char *argv[]) {
             mix_frame = cv::Mat::zeros(cv::Size(rect_size.width, rect_size.height * 2), CV_8UC3);
 
             stixles.SetDisparityParameters(rect_size.height, rect_size.width, disparity_parameters);
-            stixles.SetProbabilities(probabilities_parameters);
-            stixles.SetModelParameters(stixel_model_parameters);
-            stixles.SetCameraParameters(camera_parameters, estimated_camera_parameters);
-            stixles.Initialize();
         }
 
         left_frame = left_frame(rect_roi_up);
@@ -208,7 +205,6 @@ int main(int argc, char *argv[]) {
         disparity_im = disparity_estimation.FetchDisparityResult();
         disparity_im_color = disparity_estimation.FetchColoredDisparityResult();
         pixel_t* disparityResultPixelD = disparity_estimation.FetchDisparityResultPixelD();
-        stixles.SetDisparityImage(disparityResultPixelD);
         road_estimation.LoadDisparityImageD(disparityResultPixelD, rect_size);
         const bool ok = road_estimation.Compute();
         if (!ok) {
@@ -232,8 +228,8 @@ int main(int argc, char *argv[]) {
             continue;
         }
 
-        stixles.SetCameraParameters(camera_parameters, estimated_camera_parameters);
-        
+        stixles.LoadDisparityImage(disparityResultPixelD, rect_size, estimated_camera_parameters);
+        stixles.SetDisparityImage(disparityResultPixelD);
         elapsed_time_ms = stixles.Compute();
         Section *stx = stixles.FetchStixels();
 

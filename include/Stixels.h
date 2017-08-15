@@ -46,11 +46,8 @@ public:
     void LoadDisparityImage(const pixel_t* m_disp, cv::Size imageSize, EstimatedCameraParameters estimated_camera_params);
     void LoadDisparityImageD(pixel_t* d_disp, cv::Size imageSize, EstimatedCameraParameters estimated_camera_params);
 	void SetDisparityImage(pixel_t *disp_im);
-	void SetProbabilities(ProbabilitiesParameters params);
-	void SetCameraParameters(CameraParameters camera_params, EstimatedCameraParameters estimated_camera_params);
     void SetDisparityParameters(const int rows, const int cols,
         DisparityParameters disparity_parameters);
-	void SetModelParameters(StixelModelParameters stixel_model_parameters);
     void SetParameters(
         ProbabilitiesParameters probabilities_params,
         CameraParameters camera_params,

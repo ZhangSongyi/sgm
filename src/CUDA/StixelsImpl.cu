@@ -45,11 +45,8 @@ public:
     int FetchRealCols() { return m_realcols; }
     void Finish();
     void SetDisparityImage(pixel_t *disp_im);
-    void SetProbabilities(ProbabilitiesParameters params);
-    void SetCameraParameters(CameraParameters camera_params, EstimatedCameraParameters estimated_camera_params);
     void SetDisparityParameters(const int rows, const int cols,
         DisparityParameters disparity_parameters);
-    void SetModelParameters(StixelModelParameters stixel_model_parameters);
     void SetParameters(
         ProbabilitiesParameters probabilities_params,
         CameraParameters camera_params,
@@ -106,6 +103,8 @@ private: /*CUDA Host Pointer*/
     // Result
     Section *m_stixels;
 
+    bool first_alloc;
+
 private: /*CUDA Device Pointer*/
     pixel_t *d_disparity;
     pixel_t *d_disparity_big;
@@ -149,7 +148,8 @@ Stixels::StixelsImpl::~StixelsImpl() {}
 void Stixels::StixelsImpl::Initialize() {
     CUDA_CHECK_RETURN(cudaStreamCreate(&m_stream1));
     CUDA_CHECK_RETURN(cudaStreamCreate(&m_stream2));
-    malloc_image_memory();
+    first_alloc = true;
+    //malloc_image_memory();
 }
 
 void Stixels::StixelsImpl::Finish() {
@@ -164,11 +164,6 @@ void Stixels::StixelsImpl::SetDisparityImage(pixel_t *disp_im) {
 	// New image joining the columns
 	CUDA_CHECK_RETURN(cudaMemcpyAsync(d_disparity_big, m_disp_im, sizeof(pixel_t)*m_rows*m_cols,
 			cudaMemcpyHostToDevice, m_stream1));
-}
-
-void Stixels::StixelsImpl::SetProbabilities(ProbabilitiesParameters params) {
-    m_probabilities_params = params;
-    m_export_probabilities_params = computeProbabilitiesParameters(params, m_max_dis, m_rows);
 }
 
 ExportProbabilitiesParameters Stixels::StixelsImpl::computeProbabilitiesParameters(
@@ -197,6 +192,28 @@ ExportProbabilitiesParameters Stixels::StixelsImpl::computeProbabilitiesParamete
 void Stixels::StixelsImpl::LoadDisparityImage(const pixel_t* m_disp, 
     cv::Size imageSize, EstimatedCameraParameters estimated_camera_params) {
 
+    //SetDisparityImage((pixel_t*)m_disp);
+
+    //m_disp_im = (pixel_t*)m_disp;
+    
+    //if (m_cols != imageSize.width || m_rows != imageSize.height) {
+    //    std::cout << "!!!!!!!!!!" << std::endl;
+    //    //if (!first_alloc) {
+    //    //    std::cout << "----------" << std::endl;
+    //    //    //debug_log("Freeing memory");
+    //    //    free_image_memory();
+    //    //}
+    //    first_alloc = false;
+    //    m_cols = imageSize.width;
+    //    m_rows = imageSize.height;
+    //    //m_estimated_camera_params = estimated_camera_params;
+    //    //m_estimated_camera_params.horizonPoint = m_rows - estimated_camera_params.horizonPoint - 1;
+    //    malloc_image_memory();
+    //}
+    m_estimated_camera_params = estimated_camera_params;
+    m_estimated_camera_params.horizonPoint = m_rows - estimated_camera_params.horizonPoint - 1;
+    //CUDA_CHECK_RETURN(cudaMemcpyAsync(d_disparity_big, m_disp_im, sizeof(pixel_t)*m_rows*m_cols,
+    //    cudaMemcpyHostToDevice, m_stream1));
 }
 
 void Stixels::StixelsImpl::LoadDisparityImageD(pixel_t* d_disp, 
@@ -204,19 +221,14 @@ void Stixels::StixelsImpl::LoadDisparityImageD(pixel_t* d_disp,
 
 }
 
-void Stixels::StixelsImpl::SetCameraParameters(CameraParameters camera_params, EstimatedCameraParameters estimated_camera_params) {
-    m_camera_parameters = camera_params;
-    m_estimated_camera_params = estimated_camera_params;
-    m_estimated_camera_params.horizonPoint = m_rows - estimated_camera_params.horizonPoint - 1;
-}
-
 void Stixels::StixelsImpl::SetDisparityParameters(const int rows, const int cols,
     DisparityParameters disparity_parameters) {
 	m_rows = rows;
 	m_cols = cols;
-	m_max_dis = disparity_parameters.maxDisparity;
-	m_max_disf = (float) m_max_dis;
-    m_disparity_parameters = disparity_parameters;
+	//m_max_dis = disparity_parameters.maxDisparity;
+	//m_max_disf = (float) m_max_dis;
+    //m_disparity_parameters = disparity_parameters;
+    malloc_image_memory();
 }
 
 void Stixels::StixelsImpl::SetParameters(
@@ -231,10 +243,7 @@ void Stixels::StixelsImpl::SetParameters(
     m_max_dis = disparity_params.maxDisparity;
     m_max_disf = (float)m_max_dis;
     m_disparity_parameters = disparity_params;
-}
-
-void Stixels::StixelsImpl::SetModelParameters(StixelModelParameters stixel_model_parameters) {
-    m_model_params = stixel_model_parameters;
+    m_model_params = model_params;
 }
 
 float Stixels::StixelsImpl::Compute() {
@@ -403,6 +412,9 @@ void Stixels::StixelsImpl::free_memory() {
 }
 
 void Stixels::StixelsImpl::malloc_image_memory() {
+    std::cout << "mmmmmmmmmm" << std::endl;
+    m_export_probabilities_params = computeProbabilitiesParameters(m_probabilities_params, m_max_dis, m_rows);
+
     m_disp_im_modified = m_disp_im;
     m_realcols = (m_cols - m_model_params.widthMargin) / m_model_params.columnStep;
 
@@ -566,22 +578,10 @@ void Stixels::SetDisparityImage(pixel_t *disp_im) {
     m_impl->SetDisparityImage(disp_im);
 }
 
-void Stixels::SetProbabilities(ProbabilitiesParameters params) {
-    m_impl->SetProbabilities(params);
-}
-
-void Stixels::SetCameraParameters(CameraParameters camera_params, EstimatedCameraParameters estimated_camera_params) {
-    m_impl->SetCameraParameters(camera_params, estimated_camera_params);
-}
-
 void Stixels::SetDisparityParameters(const int rows, const int cols,
     DisparityParameters disparity_parameters) {
     m_impl->SetDisparityParameters(rows, cols,
         disparity_parameters);
-}
-
-void Stixels::SetModelParameters(StixelModelParameters stixel_model_parameters) {
-    m_impl->SetModelParameters(stixel_model_parameters);
 }
 
 void Stixels::SetParameters(
@@ -589,5 +589,5 @@ void Stixels::SetParameters(
     CameraParameters camera_params,
     DisparityParameters disparity_params,
     StixelModelParameters model_params) {
-
+    m_impl->SetParameters(probabilities_params, camera_params, disparity_params, model_params);
 }

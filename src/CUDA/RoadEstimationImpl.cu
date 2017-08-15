@@ -149,7 +149,7 @@ bool RoadEstimation::RoadEstimationImpl::Compute() {
 			m_rows, MAX_DISPARITY);
 
     // Compute the Hough transform
-	float rho, theta, horizonPoint, pitch, cameraHeight, slope;
+	float rho, theta;
     EstimatedCameraParameters roadParams;
 	if (ComputeHough(d_vDispBinary, rho, theta, roadParams)) {
 		m_rho = rho;
