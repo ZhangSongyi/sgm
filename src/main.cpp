@@ -184,6 +184,7 @@ int main(int argc, char *argv[]) {
 
             mix_frame = cv::Mat::zeros(cv::Size(rect_size.width, rect_size.height * 2), CV_8UC3);
 
+            road_estimation.UpdateImageSize(rect_size);
             stixles.UpdateImageSize(rect_size);
         }
 
