@@ -9,12 +9,14 @@ struct Section {
 
 struct CameraParameters {
     float cameraCenterX;
-    float cameraCenterY;         ///< Image center from stereo camera
-    float baseline;              ///< Stereo camera baseline
-    float focal;                 ///< Stereo camera focal length
+    float cameraCenterY;   ///< Image center from stereo camera
+    float baseline;        ///< Stereo camera baseline
+    float focal;           ///< Stereo camera focal length
 };
 
 struct EstimatedCameraParameters {
+    float sigmaCameraTilt;
+    float sigmaCameraHeight;
     float horizonPoint;          ///< Horizon point of v-disparity histogram
     float pitch;                 ///< Camera pitch
     float cameraHeight;          ///< Camera height
@@ -47,8 +49,15 @@ struct ExportProbabilitiesParameters {
     float nExistsGivenObjectNLOG;
 };
 
+struct StixelModelParameters {
+    int columnStep;
+    int medianStep;
+    float epsilon;
+    float rangeObjectsZ;
+    int widthMargin;
+};
+
 struct StixelParameters {
-    int vhor;
     int rows;
     int rows_power2;
     int cols;
@@ -56,16 +65,14 @@ struct StixelParameters {
     float rows_log;
     float normalization_sky;
     float inv_sigma2_sky;
-    float baseline;
-    float focal;
     float range_objects_z;
-    float pord;
     float epsilon;
-    float pgrav;
-    float pblg;
     float max_dis_log;
     int max_sections;
     int width_margin;
+    CameraParameters cameraParameters;
+    EstimatedCameraParameters estimatedCameraParameters;
+    ProbabilitiesParameters probabilitiesParameters;
     ExportProbabilitiesParameters exportProbabilitiesParameters;
 };
 

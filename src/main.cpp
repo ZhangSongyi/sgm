@@ -152,8 +152,6 @@ int main(int argc, char *argv[]) {
     cv::Rect rect_roi_down = cv::Rect(0, 0, 0, 0);
 
     cv::Mat mix_frame;
-    EstimatedCameraParameters estimated_camera_parameters;
-
     cv::namedWindow("Test");
 
     int currentFrame = 0;
@@ -187,7 +185,7 @@ int main(int argc, char *argv[]) {
             stixles.SetDisparityParameters(rect_size.height, rect_size.width, MAX_DISPARITY, sigma_disparity_object, sigma_disparity_ground, sigma_sky);
             stixles.SetProbabilities(probabilities_parameters);
             stixles.SetModelParameters(column_step, median_step, epsilon, range_objects_z, width_margin);
-            stixles.SetCameraParameters(0, camera_parameters.focal, camera_parameters.baseline, 0.0f, sigma_camera_tilt, 0.0f, sigma_camera_height, 0.0f);
+            stixles.SetCameraParameters(camera_parameters, estimated_camera_parameters);
             stixles.Initialize();
         }
 
@@ -233,8 +231,7 @@ int main(int argc, char *argv[]) {
             continue;
         }
 
-        stixles.SetCameraParameters(estimated_camera_parameters.horizonPoint, camera_parameters.focal, camera_parameters.baseline, estimated_camera_parameters.pitch,
-            sigma_camera_tilt, estimated_camera_parameters.cameraHeight, sigma_camera_height, estimated_camera_parameters.slope);
+        stixles.SetCameraParameters(camera_parameters, estimated_camera_parameters);
         
         elapsed_time_ms = stixles.Compute();
         Section *stx = stixles.GetStixels();

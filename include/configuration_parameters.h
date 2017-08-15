@@ -18,14 +18,14 @@ const float sigma_disparity_object = 1.0f;
 const float sigma_disparity_ground = 2.0f;
 const float sigma_sky = 0.1f; // Should be small compared to sigma_dis
 
-const struct CameraParameters camera_parameters = {
-    /*cameraCenterX = */ 651.216186523f,
-    /*cameraCenterY = */ 224.2f,
-    /*baseline      = */ 0.643f,
-    /*focal         = */ 960.0f
+const CameraParameters camera_parameters = {
+    /*cameraCenterX      = */ 651.216186523f,
+    /*cameraCenterY      = */ 224.2f,
+    /*baseline           = */ 0.643f,
+    /*focal              = */ 960.0f
 };
 
-const struct ProbabilitiesParameters probabilities_parameters = {
+const ProbabilitiesParameters probabilities_parameters = {
     /*out                = */ 0.15f,
     /*outSky             = */ 0.4f,
     /*groundGivenNExist  = */ 0.36f,
@@ -40,13 +40,14 @@ const struct ProbabilitiesParameters probabilities_parameters = {
     /*blg                = */ 0.04f
 };
 
+EstimatedCameraParameters estimated_camera_parameters = {
+    /*sigmaCameraTilt    = */ 0.05f * (PIFLOAT) / 180.0f,
+    /*sigmaCameraHeight  = */ 0.05f
+};
+
 // Virtual parameters
 const int column_step = 5;
 const int width_margin = 0;
-
-const float sigma_camera_tilt = 0.05f;
-const float sigma_camera_height = 0.05f;
-const float camera_center_x = 651.216186523f;
 
 /* Model Parameters */
 const bool median_step = false;

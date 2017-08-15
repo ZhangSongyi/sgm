@@ -259,7 +259,7 @@ __global__ void StixelsKernel(const pixel_t* __restrict__ d_disparity, const Sti
 		sum[row] = d;
 #endif
 
-        sky_lut[row] = (row < params.vhor) ? MAX_LOGPROB : GetDataCostSky(d, 
+        sky_lut[row] = (row < params.estimatedCameraParameters.horizonPoint) ? MAX_LOGPROB : GetDataCostSky(d,
             params.exportProbabilitiesParameters.nExistsGivenSkyLOG,
             params.normalization_sky, 
             params.inv_sigma2_sky, 
@@ -268,7 +268,7 @@ __global__ void StixelsKernel(const pixel_t* __restrict__ d_disparity, const Sti
 
 		ground_function[row] = d_ground_function[row];
 		const float gf = ground_function[row];
-		ground_lut[row] = (row >= params.vhor) ? MAX_LOGPROB : GetDataCostGround(gf, row, d,
+		ground_lut[row] = (row >= params.estimatedCameraParameters.horizonPoint) ? MAX_LOGPROB : GetDataCostGround(gf, row, d,
 			params.exportProbabilitiesParameters.nExistsGivenGroundLOG, 
             d_normalization_ground, 
             d_inv_sigma2_ground,
@@ -307,7 +307,7 @@ __global__ void StixelsKernel(const pixel_t* __restrict__ d_disparity, const Sti
 			// Compute priors costs
 			const int index_pground = vT*3+GROUND;
 			const int index_pobject = vT*3+OBJECT;
-			const bool below_vhor_vT = vT <= params.vhor;
+			const bool below_vhor_vT = vT <= params.estimatedCameraParameters.horizonPoint;
 
 			if(below_vhor_vT) {
 				const float cost_ground_prior = GetPriorCostGroundFirst(params.rows_log);
@@ -342,7 +342,7 @@ __global__ void StixelsKernel(const pixel_t* __restrict__ d_disparity, const Sti
 				const float prior_cost = GetPriorCost(vB, params.rows);
 
 				const int previous_vT = vB-1;
-				const bool below_vhor_vTprev = previous_vT < params.vhor;
+				const bool below_vhor_vTprev = previous_vT <  params.estimatedCameraParameters.horizonPoint;
 				const int previous_object_vB = index_table[previous_vT*3+OBJECT] / 3;
 				const pixel_t previous_mean = ComputeMean(previous_object_vB, previous_vT, sum, valid, column);
 
@@ -370,7 +370,7 @@ __global__ void StixelsKernel(const pixel_t* __restrict__ d_disparity, const Sti
 					const float cost_sky_data = sky_lut[vT+1] - sky_lut[vB];
 					const int index_psky = vT*3+SKY;
 
-					const float cost_sky_prior1 = GetPriorCostSkyFromGround(vB, previous_mean, params.vhor,
+					const float cost_sky_prior1 = GetPriorCostSkyFromGround(vB, previous_mean, params.estimatedCameraParameters.horizonPoint,
 							params.epsilon, ground_function, prior_cost) + cost_table[previous_vT*3+GROUND];
 
 					const float cost_sky_prior2 = GetPriorCostSkyFromObject(previous_mean, params.epsilon,
@@ -393,11 +393,11 @@ __global__ void StixelsKernel(const pixel_t* __restrict__ d_disparity, const Sti
 
 				const float cost_object_prior1 = GetPriorCostObjectFromGround(vB, obj_fn, previous_mean,
 						prior_objfromground, params.max_dis, max_disf, ground_function, prior_cost,
-						params.epsilon, params.pgrav, params.pblg) + cost_table[previous_vT*3+GROUND];
+						params.epsilon, params.probabilitiesParameters.grav, params.probabilitiesParameters.blg) + cost_table[previous_vT*3+GROUND];
 
 				const float cost_object_prior2 = GetPriorCostObjectFromObject(vB, obj_fn, previous_mean,
-						prior_objfromobj, object_disparity_range, params.vhor, params.max_dis, max_disf,
-						params.pord, prior_cost) + cost_table[previous_vT*3+OBJECT];
+						prior_objfromobj, object_disparity_range, params.estimatedCameraParameters.horizonPoint, params.max_dis, max_disf,
+						params.probabilitiesParameters.ord, prior_cost) + cost_table[previous_vT*3+OBJECT];
 				const float cost_object_prior3 = GetPriorCostObjectFromSky(obj_fn, max_disf, prior_cost,
 						params.epsilon) + cost_table[previous_vT*3+SKY];
 
