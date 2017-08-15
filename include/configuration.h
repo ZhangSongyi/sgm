@@ -52,6 +52,8 @@
 
 #define ROBUST_MEAN_ESTIMATION true
 
+#define PIFLOAT 3.1416f
+
 typedef float pixel_t;
 typedef uint32_t cost_t;
 
