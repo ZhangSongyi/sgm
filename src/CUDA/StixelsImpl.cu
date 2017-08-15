@@ -48,29 +48,32 @@ public:
     void SetDisparityImage(pixel_t *disp_im);
     void SetProbabilities(ProbabilitiesParameters params);
     void SetCameraParameters(CameraParameters camera_params, EstimatedCameraParameters estimated_camera_params);
-    void SetDisparityParameters(const int rows, const int cols, const int max_dis,
-        const float sigma_disparity_object, const float sigma_disparity_ground, float sigma_sky);
+    void SetDisparityParameters(const int rows, const int cols,
+        DisparityParameters disparity_parameters);
     void SetModelParameters(StixelModelParameters stixel_model_parameters);
+    void SetParameters(
+        ProbabilitiesParameters probabilities_params,
+        CameraParameters camera_params,
+        DisparityParameters disparity_params,
+        StixelModelParameters model_params
+    );
 
 private: /*CUDA Host Pointer*/
     // Variables
     pixel_t *m_disp_im;
     pixel_t *m_disp_im_modified;
 
-    // Probabilities
     ProbabilitiesParameters m_probabilities_params;
     ExportProbabilitiesParameters m_export_probabilities_params;
     CameraParameters m_camera_parameters;
     EstimatedCameraParameters m_estimated_camera_params;
     StixelModelParameters m_model_params;
+    DisparityParameters m_disparity_parameters;
 
     // Disparity Parameters
     int m_max_dis;
     float m_max_disf;
     int m_rows, m_cols, m_realcols;
-    float m_sigma_disparity_object;
-    float m_sigma_disparity_ground;
-    float m_sigma_sky;
 
     // Tables
     float *m_cost_table;
@@ -231,13 +234,11 @@ void Stixels::StixelsImpl::Initialize() {
 	m_params.inv_sigma2_sky = m_inv_sigma2_sky;
     m_params.exportProbabilitiesParameters = m_export_probabilities_params;
     m_params.cameraParameters = m_camera_parameters;
-	m_params.range_objects_z = m_model_params.rangeObjectsZ;
+	m_params.modelParameters = m_model_params;
     m_params.probabilitiesParameters = m_probabilities_params;
-	m_params.epsilon = m_model_params.epsilon;
 	m_params.rows_power2 = rows_power2;
 	m_params.max_sections = m_max_sections;
 	m_params.max_dis_log = m_max_dis_log;
-	m_params.width_margin = m_model_params.widthMargin;
 }
 
 void Stixels::StixelsImpl::Finish() {
@@ -325,15 +326,27 @@ void Stixels::StixelsImpl::SetCameraParameters(CameraParameters camera_params, E
     m_estimated_camera_params.horizonPoint = m_rows - estimated_camera_params.horizonPoint - 1;
 }
 
-void Stixels::StixelsImpl::SetDisparityParameters(const int rows, const int cols, const int max_dis,
-		const float sigma_disparity_object, const float sigma_disparity_ground, float sigma_sky) {
+void Stixels::StixelsImpl::SetDisparityParameters(const int rows, const int cols,
+    DisparityParameters disparity_parameters) {
 	m_rows = rows;
 	m_cols = cols;
-	m_max_dis = max_dis;
+	m_max_dis = disparity_parameters.maxDisparity;
 	m_max_disf = (float) m_max_dis;
-    m_sigma_disparity_object = sigma_disparity_object;
-    m_sigma_disparity_ground = sigma_disparity_ground;
-	m_sigma_sky = sigma_sky;
+    m_disparity_parameters = disparity_parameters;
+}
+
+void Stixels::StixelsImpl::SetParameters(
+    ProbabilitiesParameters probabilities_params,
+    CameraParameters camera_params,
+    DisparityParameters disparity_params,
+    StixelModelParameters model_params) {
+
+    //m_camera_parameters = camera_params;
+    //m_probabilities_params = probabilities_params;
+    //m_export_probabilities_params = ComputeProbabilitiesParameters(probabilities_params, m_max_dis, m_rows);
+    //m_max_dis = disparity_params.maxDisparity;
+    //m_max_disf = (float)m_max_dis;
+    //m_disparity_parameters = disparity_params;
 }
 
 void Stixels::StixelsImpl::SetModelParameters(StixelModelParameters stixel_model_parameters) {
@@ -438,7 +451,7 @@ void Stixels::StixelsImpl::PrecomputeGround() {
 		const float x = m_estimated_camera_params.pitch+(float)(m_estimated_camera_params.horizonPoint-v)/ m_camera_parameters.focal;
 		const float sigma2_road = fb*fb*(m_estimated_camera_params.cameraHeight*m_estimated_camera_params.sigmaCameraHeight
 				*x*x/(m_estimated_camera_params.cameraHeight*m_estimated_camera_params.cameraHeight)+ m_estimated_camera_params.sigmaCameraTilt*m_estimated_camera_params.sigmaCameraTilt);
-        const float sigma = sqrtf(m_sigma_disparity_ground*m_sigma_disparity_ground+sigma2_road);
+        const float sigma = sqrtf(m_disparity_parameters.sigmaDisparityGround *m_disparity_parameters.sigmaDisparityGround +sigma2_road);
 
 		const float a_range = 0.5f*(erf((m_max_disf-fn)/(sigma*sqrtf(2.0f)))-erf((-fn)/(sigma*sqrtf(2.0f))));
 
@@ -454,7 +467,7 @@ void Stixels::StixelsImpl::PrecomputeObject() {
 		const float fn = (float) dis;
 
 		const float sigma_object = fn*fn*m_model_params.rangeObjectsZ/(m_camera_parameters.focal *m_camera_parameters.baseline);
-        const float sigma = sqrtf(m_sigma_disparity_object*m_sigma_disparity_object+sigma_object*sigma_object);
+        const float sigma = sqrtf(m_disparity_parameters.sigmaDisparityObject*m_disparity_parameters.sigmaDisparityObject +sigma_object*sigma_object);
 
 		const float a_range = 0.5f*(erf((m_max_disf-fn)/(sigma*sqrtf(2.0f)))-erf((-fn)/(sigma*sqrtf(2.0f))));
 
@@ -476,7 +489,7 @@ float Stixels::StixelsImpl::GetDataCostObject(const float fn, const int dis, con
 }
 
 void Stixels::StixelsImpl::PrecomputeSky() {
-	const float sigma = m_sigma_sky;
+	const float sigma = m_disparity_parameters.sigmaSky;
 	const float pout = m_probabilities_params.outSky;
 
 	const float a_range = 0.5f*(erf(m_max_disf/(sigma*sqrtf(2.0f)))-erf(0.0f));
@@ -519,22 +532,6 @@ void Stixels::StixelsImpl::PrintTable(T *table) {
         std::cout << i << "\t" << table[i * 3] << "\t" << table[i * 3 + 1]
             << "\t" << table[i * 3 + 2] << std::endl;
     }
-}
-
-void malloc_memory() {
-
-}
-
-void free_memory() {
-
-}
-
-void malloc_image_memory() {
-
-}
-
-void free_image_memory() {
-
 }
 
 Stixels::Stixels() : 
@@ -588,12 +585,20 @@ void Stixels::SetCameraParameters(CameraParameters camera_params, EstimatedCamer
     m_impl->SetCameraParameters(camera_params, estimated_camera_params);
 }
 
-void Stixels::SetDisparityParameters(const int rows, const int cols, const int max_dis,
-    const float sigma_disparity_object, const float sigma_disparity_ground, float sigma_sky) {
-    m_impl->SetDisparityParameters(rows, cols, max_dis,
-        sigma_disparity_object, sigma_disparity_ground, sigma_sky);
+void Stixels::SetDisparityParameters(const int rows, const int cols,
+    DisparityParameters disparity_parameters) {
+    m_impl->SetDisparityParameters(rows, cols,
+        disparity_parameters);
 }
 
 void Stixels::SetModelParameters(StixelModelParameters stixel_model_parameters) {
     m_impl->SetModelParameters(stixel_model_parameters);
+}
+
+void Stixels::SetParameters(
+    ProbabilitiesParameters probabilities_params,
+    CameraParameters camera_params,
+    DisparityParameters disparity_params,
+    StixelModelParameters model_params) {
+
 }

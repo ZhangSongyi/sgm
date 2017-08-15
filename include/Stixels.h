@@ -49,9 +49,14 @@ public:
 	void SetDisparityImage(pixel_t *disp_im);
 	void SetProbabilities(ProbabilitiesParameters params);
 	void SetCameraParameters(CameraParameters camera_params, EstimatedCameraParameters estimated_camera_params);
-    void SetDisparityParameters(const int rows, const int cols, const int max_dis,
-    		const float sigma_disparity_object, const float sigma_disparity_ground, float sigma_sky);
+    void SetDisparityParameters(const int rows, const int cols,
+        DisparityParameters disparity_parameters);
 	void SetModelParameters(StixelModelParameters stixel_model_parameters);
+    void SetParameters(
+        ProbabilitiesParameters probabilities_params,
+        CameraParameters camera_params,
+        DisparityParameters disparity_params,
+        StixelModelParameters model_params);
 private:
     class StixelsImpl;
     std::auto_ptr<StixelsImpl> m_impl;

@@ -13,11 +13,6 @@
  ** ROAD ESTIMATION CONFIGURATION
  **/
 
-/* Disparity Parameters */
-const float sigma_disparity_object = 1.0f;
-const float sigma_disparity_ground = 2.0f;
-const float sigma_sky = 0.1f; // Should be small compared to sigma_dis
-
 const CameraParameters camera_parameters = {
     /*cameraCenterX      = */ 651.216186523f,
     /*cameraCenterY      = */ 224.2f,
@@ -46,6 +41,13 @@ const StixelModelParameters stixel_model_parameters = {
     /* epsilon           = */ 3.0f,
     /* rangeObjectsZ     = */ 10.20f, // in meters
     /* widthMargin       = */ 0
+};
+
+struct DisparityParameters disparity_parameters {
+    /* maxDisparity         = */ 128,
+    /* sigmaDisparityObject = */ 1.0f, 
+    /* sigmaDisparityGround = */ 2.0f,
+    /* sigmaSky             = */ 0.1f // Should be small compared to sigma_dis
 };
 
 EstimatedCameraParameters estimated_camera_parameters = {

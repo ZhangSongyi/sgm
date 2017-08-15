@@ -143,6 +143,7 @@ int main(int argc, char *argv[]) {
     road_estimation.Initialize();
     disparity_estimation.SetParameter(p1, p2);
     road_estimation.SetCameraParameters(camera_parameters);
+    //stixles.SetParameters(probabilities_parameters, camera_parameters, disparity_parameters, stixel_model_parameters);
 
     cv::Mat left_frame, right_frame, left_frame1, right_frame1;
     cv::Mat disparity_im, disparity_im_color;
@@ -182,7 +183,7 @@ int main(int argc, char *argv[]) {
 
             mix_frame = cv::Mat::zeros(cv::Size(rect_size.width, rect_size.height * 2), CV_8UC3);
 
-            stixles.SetDisparityParameters(rect_size.height, rect_size.width, MAX_DISPARITY, sigma_disparity_object, sigma_disparity_ground, sigma_sky);
+            stixles.SetDisparityParameters(rect_size.height, rect_size.width, disparity_parameters);
             stixles.SetProbabilities(probabilities_parameters);
             stixles.SetModelParameters(stixel_model_parameters);
             stixles.SetCameraParameters(camera_parameters, estimated_camera_parameters);
