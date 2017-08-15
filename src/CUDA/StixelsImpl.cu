@@ -41,9 +41,8 @@ public:
     void LoadDisparityImage(const pixel_t* m_disp, cv::Size imageSize, EstimatedCameraParameters estimated_camera_params);
     void LoadDisparityImageD(pixel_t* d_disp, cv::Size imageSize, EstimatedCameraParameters estimated_camera_params);
     float Compute();
-    Section* GetStixels() { return m_stixels; }
-    int GetRealCols() { return m_realcols; }
-    int GetMaxSections() { return m_max_sections; }
+    Section* FetchStixels() { return m_stixels; }
+    int FetchRealCols() { return m_realcols; }
     void Finish();
     void SetDisparityImage(pixel_t *disp_im);
     void SetProbabilities(ProbabilitiesParameters params);
@@ -120,22 +119,21 @@ private: /*CUDA Device Pointer*/
     float *d_obj_cost_lut;
     cudaStream_t m_stream1, m_stream2;
     StixelParameters m_params;
-    int m_max_sections;
     Section *d_stixels;
 
 private:
-    void PrecomputeSky();
-    void PrecomputeGround();
-    void PrecomputeObject();
-    float GetDataCostObject(const float fn, const int dis, const float d);
-    float ComputeObjectDisparityRange(const float previous_mean);
-    pixel_t ComputeMean(const int vB, const int vT, const int u);
-    ExportProbabilitiesParameters ComputeProbabilitiesParameters(ProbabilitiesParameters params,
+    void preComputeSky();
+    void preComputeGround();
+    void preComputeObject();
+    float computeDataCostObject(const float fn, const int dis, const float d);
+    float computeObjectDisparityRange(const float previous_mean);
+    pixel_t computeMean(const int vB, const int vT, const int u);
+    ExportProbabilitiesParameters computeProbabilitiesParameters(ProbabilitiesParameters params,
         int max_dist, int rows);
-    float GroundFunction(const int v);
-    float FastLog(float v);
+    float groundFunction(const int v);
+    float fastLog(float v);
     template<typename T>
-    void PrintTable(T *table);
+    void printTable(T *table);
 
 private:
     void malloc_memory();
@@ -149,129 +147,15 @@ Stixels::StixelsImpl::StixelsImpl() {}
 Stixels::StixelsImpl::~StixelsImpl() {}
 
 void Stixels::StixelsImpl::Initialize() {
-	m_disp_im_modified = m_disp_im;
-	m_realcols = (m_cols- m_model_params.widthMargin)/ m_model_params.columnStep;
-
-	m_cost_table = new float[3*m_realcols];
-	m_index_table = new int16_t[m_rows*3*m_realcols];
-
-	m_max_sections = 50;
-
-	m_stixels = new Section[m_realcols*m_max_sections];
-	CUDA_CHECK_RETURN(cudaMalloc((void **)&d_stixels, m_realcols*m_max_sections*sizeof(Section)));
-
-	if(m_model_params.columnStep > 1) {
-		CUDA_CHECK_RETURN(cudaMallocHost((void**)&m_disp_im_modified, m_rows*m_realcols*sizeof(float)));
-	}
-
-	// Mean precomputation
-	m_column = new pixel_t[m_rows*m_realcols];
-	m_sum = new pixel_t[(m_rows+1)*m_realcols];
-	m_valid = new pixel_t[(m_rows+1)*m_realcols];
-
-	m_ground_function = new float[m_rows];
-
-	// Log LUT, range: 0.0f - 1.0f
-    m_log_lut = new float[LOG_LUT_SIZE+1];
-	for(int i = 0; i < LOG_LUT_SIZE; i++) {
-		const float log_res = (float)i/((float)LOG_LUT_SIZE);
-		m_log_lut[i] = logf (log_res);
-	}
-    m_log_lut[LOG_LUT_SIZE] = 0.0f;
-
-	// Frequently used values
-	
-
-	// Data term precomputation
-	m_normalization_ground = new float[m_rows];
-	m_inv_sigma2_ground = new float[m_rows];
-	m_normalization_object = new float[m_max_dis];
-	m_inv_sigma2_object = new float[m_max_dis];
-	m_object_disparity_range = new float[m_max_dis];
-
-	for(int i = 0; i < m_max_dis; i++) {
-		float previous_mean = (float) i;
-		m_object_disparity_range[i] = ComputeObjectDisparityRange(previous_mean);
-	}
-
-	// Precomputation of data term
-	PrecomputeSky();
-	PrecomputeObject();
-
-	// Object Data Cost LUT
-	m_obj_cost_lut = new float[m_max_dis*m_max_dis];
-
-	for(int fn = 0; fn < m_max_dis; fn++) {
-		for(int dis = 0; dis < m_max_dis; dis++) {
-			m_obj_cost_lut[fn*m_max_dis+dis] = GetDataCostObject((float) fn, dis, (float) dis);
-		}
-	}
-
-	const int rows_power2 = (int) powf(2, ceilf(log2f(m_rows+1)));
-
-	CUDA_CHECK_RETURN(cudaMalloc((void **)&d_disparity_big, m_rows*m_cols*sizeof(float)));
-	CUDA_CHECK_RETURN(cudaMalloc((void **)&d_disparity, m_rows*m_realcols*sizeof(float)));
-	CUDA_CHECK_RETURN(cudaMalloc((void **)&d_ground_function, m_rows*m_realcols*sizeof(float)));
-	CUDA_CHECK_RETURN(cudaMalloc((void **)&d_normalization_ground, m_rows*sizeof(float)));
-	CUDA_CHECK_RETURN(cudaMalloc((void **)&d_inv_sigma2_ground, m_rows*sizeof(float)));
-	CUDA_CHECK_RETURN(cudaMalloc((void **)&d_object_disparity_range, m_max_dis*sizeof(float)));
-	CUDA_CHECK_RETURN(cudaMalloc((void **)&d_object_lut, rows_power2*m_realcols*m_max_dis*sizeof(float)));
-	CUDA_CHECK_RETURN(cudaMalloc((void **)&d_obj_cost_lut, m_max_dis*m_max_dis*sizeof(float)));
-
-	CUDA_CHECK_RETURN(cudaMemcpy(d_object_disparity_range, m_object_disparity_range, sizeof(float)*m_max_dis,
-			cudaMemcpyHostToDevice));
-	CUDA_CHECK_RETURN(cudaMemcpy(d_obj_cost_lut, m_obj_cost_lut, sizeof(float)*m_max_dis*m_max_dis,
-			cudaMemcpyHostToDevice));
-
-	CUDA_CHECK_RETURN(cudaStreamCreate(&m_stream1));
-	CUDA_CHECK_RETURN(cudaStreamCreate(&m_stream2));
-
-	m_params.rows = m_rows;
-	m_params.cols = m_realcols;
-	m_params.max_dis = m_max_dis;
-	m_params.rows_log = m_rows_log;
-	m_params.normalization_sky = m_normalization_sky;
-	m_params.inv_sigma2_sky = m_inv_sigma2_sky;
-    m_params.exportProbabilitiesParameters = m_export_probabilities_params;
-    m_params.cameraParameters = m_camera_parameters;
-	m_params.modelParameters = m_model_params;
-    m_params.probabilitiesParameters = m_probabilities_params;
-	m_params.rows_power2 = rows_power2;
-	m_params.max_sections = m_max_sections;
-	m_params.max_dis_log = m_max_dis_log;
+    CUDA_CHECK_RETURN(cudaStreamCreate(&m_stream1));
+    CUDA_CHECK_RETURN(cudaStreamCreate(&m_stream2));
+    malloc_image_memory();
 }
 
 void Stixels::StixelsImpl::Finish() {
-	delete[] m_cost_table;
-	delete[] m_index_table;
-	delete[] m_stixels;
-	if(m_model_params.columnStep > 1) {
-		CUDA_CHECK_RETURN(cudaFreeHost(m_disp_im_modified));
-	}
-	delete[] m_column;
-	delete[] m_sum;
-	delete[] m_valid;
-	delete[] m_ground_function;
-	delete[] m_normalization_ground;
-	delete[] m_inv_sigma2_ground;
-	delete[] m_normalization_object;
-	delete[] m_inv_sigma2_object;
-	delete[] m_object_disparity_range;
-	delete[] m_obj_cost_lut;
-	delete[] m_log_lut;
-
-	CUDA_CHECK_RETURN(cudaFree(d_disparity_big));
-	CUDA_CHECK_RETURN(cudaFree(d_disparity));
-	CUDA_CHECK_RETURN(cudaFree(d_ground_function));
-	CUDA_CHECK_RETURN(cudaFree(d_normalization_ground));
-	CUDA_CHECK_RETURN(cudaFree(d_inv_sigma2_ground));
-	CUDA_CHECK_RETURN(cudaFree(d_object_disparity_range));
-	CUDA_CHECK_RETURN(cudaFree(d_object_lut));
-	CUDA_CHECK_RETURN(cudaFree(d_stixels));
-	CUDA_CHECK_RETURN(cudaFree(d_obj_cost_lut));
-
-	CUDA_CHECK_RETURN(cudaStreamDestroy(m_stream1));
-	CUDA_CHECK_RETURN(cudaStreamDestroy(m_stream2));
+    free_image_memory();
+    CUDA_CHECK_RETURN(cudaStreamDestroy(m_stream1));
+    CUDA_CHECK_RETURN(cudaStreamDestroy(m_stream2));
 }
 
 void Stixels::StixelsImpl::SetDisparityImage(pixel_t *disp_im) {
@@ -284,10 +168,10 @@ void Stixels::StixelsImpl::SetDisparityImage(pixel_t *disp_im) {
 
 void Stixels::StixelsImpl::SetProbabilities(ProbabilitiesParameters params) {
     m_probabilities_params = params;
-    m_export_probabilities_params = ComputeProbabilitiesParameters(params, m_max_dis, m_rows);
+    m_export_probabilities_params = computeProbabilitiesParameters(params, m_max_dis, m_rows);
 }
 
-ExportProbabilitiesParameters Stixels::StixelsImpl::ComputeProbabilitiesParameters(
+ExportProbabilitiesParameters Stixels::StixelsImpl::computeProbabilitiesParameters(
     ProbabilitiesParameters params, int max_dist, int rows) {
     ExportProbabilitiesParameters ex_params;
 
@@ -341,12 +225,12 @@ void Stixels::StixelsImpl::SetParameters(
     DisparityParameters disparity_params,
     StixelModelParameters model_params) {
 
-    //m_camera_parameters = camera_params;
-    //m_probabilities_params = probabilities_params;
-    //m_export_probabilities_params = ComputeProbabilitiesParameters(probabilities_params, m_max_dis, m_rows);
-    //m_max_dis = disparity_params.maxDisparity;
-    //m_max_disf = (float)m_max_dis;
-    //m_disparity_parameters = disparity_params;
+    m_camera_parameters = camera_params;
+    m_probabilities_params = probabilities_params;
+    //m_export_probabilities_params = computeProbabilitiesParameters(probabilities_params, m_max_dis, m_rows);
+    m_max_dis = disparity_params.maxDisparity;
+    m_max_disf = (float)m_max_dis;
+    m_disparity_parameters = disparity_params;
 }
 
 void Stixels::StixelsImpl::SetModelParameters(StixelModelParameters stixel_model_parameters) {
@@ -360,7 +244,7 @@ float Stixels::StixelsImpl::Compute() {
 	cudaEventRecord(start, 0);
 
 	// Precomputation of data term
-	PrecomputeGround();
+	preComputeGround();
 
 	CUDA_CHECK_RETURN(cudaMemcpy(d_ground_function, m_ground_function, sizeof(float)*m_rows,
 			cudaMemcpyHostToDevice));
@@ -411,16 +295,16 @@ float Stixels::StixelsImpl::Compute() {
 	cudaEventElapsedTime(&elapsed_time_ms, start, stop);
 	cudaEventDestroy(start);
 	cudaEventDestroy(stop);
-	CUDA_CHECK_RETURN(cudaMemcpy(m_stixels, d_stixels, m_realcols*m_max_sections*sizeof(Section),
+	CUDA_CHECK_RETURN(cudaMemcpy(m_stixels, d_stixels, m_realcols*m_model_params.maxSections*sizeof(Section),
 			cudaMemcpyDeviceToHost));
 	return elapsed_time_ms;
 }
 
-float Stixels::StixelsImpl::FastLog(float v) {
+float Stixels::StixelsImpl::fastLog(float v) {
 	return m_log_lut[(int)((v)*LOG_LUT_SIZE+0.5f)];
 }
 
-pixel_t Stixels::StixelsImpl::ComputeMean(const int vB, const int vT, const int u) {
+pixel_t Stixels::StixelsImpl::computeMean(const int vB, const int vT, const int u) {
 	const pixel_t valid_dif = m_valid[u*(m_rows+1)+vT+1]-m_valid[u*(m_rows+1)+vB];
 	pixel_t mean = (valid_dif == 0) ? 0 : (m_sum[u*(m_rows+1)+vT+1]-m_sum[u*(m_rows+1)+vB])/valid_dif;
 
@@ -440,12 +324,12 @@ pixel_t Stixels::StixelsImpl::ComputeMean(const int vB, const int vT, const int 
 	return mean;
 }
 
-void Stixels::StixelsImpl::PrecomputeGround() {
+void Stixels::StixelsImpl::preComputeGround() {
 	const float fb = (m_camera_parameters.focal *m_camera_parameters.baseline)/ m_estimated_camera_params.cameraHeight;
 	const float pout = m_probabilities_params.out;
 
 	for(int v = 0; v < m_rows; v++) {
-		const float fn = GroundFunction(v);
+		const float fn = groundFunction(v);
 		m_ground_function[v] = fn;
 
 		const float x = m_estimated_camera_params.pitch+(float)(m_estimated_camera_params.horizonPoint-v)/ m_camera_parameters.focal;
@@ -455,12 +339,12 @@ void Stixels::StixelsImpl::PrecomputeGround() {
 
 		const float a_range = 0.5f*(erf((m_max_disf-fn)/(sigma*sqrtf(2.0f)))-erf((-fn)/(sigma*sqrtf(2.0f))));
 
-		m_normalization_ground[v] = FastLog(a_range) - FastLog((1.0f - pout)/(sigma*sqrtf(2.0f*PIFLOAT)));
+		m_normalization_ground[v] = fastLog(a_range) - fastLog((1.0f - pout)/(sigma*sqrtf(2.0f*PIFLOAT)));
 		m_inv_sigma2_ground[v] = 1.0f/(2.0f*sigma*sigma);
 	}
 }
 
-void Stixels::StixelsImpl::PrecomputeObject() {
+void Stixels::StixelsImpl::preComputeObject() {
 	const float pout = m_probabilities_params.out;
 
 	for(int dis = 0; dis < m_max_dis; dis++) {
@@ -471,12 +355,12 @@ void Stixels::StixelsImpl::PrecomputeObject() {
 
 		const float a_range = 0.5f*(erf((m_max_disf-fn)/(sigma*sqrtf(2.0f)))-erf((-fn)/(sigma*sqrtf(2.0f))));
 
-		m_normalization_object[dis] = FastLog(a_range) - FastLog((1.0f - pout)/(sigma*sqrtf(2.0f*PIFLOAT)));
+		m_normalization_object[dis] = fastLog(a_range) - fastLog((1.0f - pout)/(sigma*sqrtf(2.0f*PIFLOAT)));
 		m_inv_sigma2_object[dis] = 1.0f/(2.0f*sigma*sigma);
 	}
 }
 
-float Stixels::StixelsImpl::GetDataCostObject(const float fn, const int dis, const float d) {
+float Stixels::StixelsImpl::computeDataCostObject(const float fn, const int dis, const float d) {
     float data_cost = m_export_probabilities_params.nExistsGivenObjectLOG;
 	if(!ALLOW_INVALID_DISPARITIES || d != INVALID_DISPARITY) {
 		const float model_diff = (d-fn);
@@ -488,20 +372,20 @@ float Stixels::StixelsImpl::GetDataCostObject(const float fn, const int dis, con
 	return data_cost;
 }
 
-void Stixels::StixelsImpl::PrecomputeSky() {
+void Stixels::StixelsImpl::preComputeSky() {
 	const float sigma = m_disparity_parameters.sigmaSky;
 	const float pout = m_probabilities_params.outSky;
 
 	const float a_range = 0.5f*(erf(m_max_disf/(sigma*sqrtf(2.0f)))-erf(0.0f));
-	m_normalization_sky = FastLog(a_range) - logf((1.0f - pout)/(sigma*sqrtf(2.0f*PIFLOAT)));
+	m_normalization_sky = fastLog(a_range) - logf((1.0f - pout)/(sigma*sqrtf(2.0f*PIFLOAT)));
 	m_inv_sigma2_sky = 1.0f/(2.0f*sigma*sigma);
 }
 
-float Stixels::StixelsImpl::GroundFunction(const int v) {
+float Stixels::StixelsImpl::groundFunction(const int v) {
 	return m_estimated_camera_params.slope*(float)(m_estimated_camera_params.horizonPoint-v);
 }
 
-float Stixels::StixelsImpl::ComputeObjectDisparityRange(const float previous_mean) {
+float Stixels::StixelsImpl::computeObjectDisparityRange(const float previous_mean) {
 	float range_disp = 0.0f;
 	if(previous_mean != 0) {
 		const float pmean_plus_z = (m_camera_parameters.focal *m_camera_parameters.baseline /previous_mean) + m_model_params.rangeObjectsZ;
@@ -519,15 +403,124 @@ void Stixels::StixelsImpl::free_memory() {
 }
 
 void Stixels::StixelsImpl::malloc_image_memory() {
+    m_disp_im_modified = m_disp_im;
+    m_realcols = (m_cols - m_model_params.widthMargin) / m_model_params.columnStep;
 
+    m_cost_table = new float[3 * m_realcols];
+    m_index_table = new int16_t[m_rows * 3 * m_realcols];
+
+    m_stixels = new Section[m_realcols*m_model_params.maxSections];
+    CUDA_CHECK_RETURN(cudaMalloc((void **)&d_stixels, m_realcols*m_model_params.maxSections * sizeof(Section)));
+
+    if (m_model_params.columnStep > 1) {
+        CUDA_CHECK_RETURN(cudaMallocHost((void**)&m_disp_im_modified, m_rows*m_realcols * sizeof(float)));
+    }
+
+    // Mean precomputation
+    m_column = new pixel_t[m_rows*m_realcols];
+    m_sum = new pixel_t[(m_rows + 1)*m_realcols];
+    m_valid = new pixel_t[(m_rows + 1)*m_realcols];
+
+    m_ground_function = new float[m_rows];
+
+    // Log LUT, range: 0.0f - 1.0f
+    m_log_lut = new float[LOG_LUT_SIZE + 1];
+    for (int i = 0; i < LOG_LUT_SIZE; i++) {
+        const float log_res = (float)i / ((float)LOG_LUT_SIZE);
+        m_log_lut[i] = logf(log_res);
+    }
+    m_log_lut[LOG_LUT_SIZE] = 0.0f;
+
+    // Frequently used values
+
+
+    // Data term precomputation
+    m_normalization_ground = new float[m_rows];
+    m_inv_sigma2_ground = new float[m_rows];
+    m_normalization_object = new float[m_max_dis];
+    m_inv_sigma2_object = new float[m_max_dis];
+    m_object_disparity_range = new float[m_max_dis];
+
+    for (int i = 0; i < m_max_dis; i++) {
+        float previous_mean = (float)i;
+        m_object_disparity_range[i] = computeObjectDisparityRange(previous_mean);
+    }
+
+    // Precomputation of data term
+    preComputeSky();
+    preComputeObject();
+
+    // Object Data Cost LUT
+    m_obj_cost_lut = new float[m_max_dis*m_max_dis];
+
+    for (int fn = 0; fn < m_max_dis; fn++) {
+        for (int dis = 0; dis < m_max_dis; dis++) {
+            m_obj_cost_lut[fn*m_max_dis + dis] = computeDataCostObject((float)fn, dis, (float)dis);
+        }
+    }
+
+    const int rows_power2 = (int)powf(2, ceilf(log2f(m_rows + 1)));
+
+    CUDA_CHECK_RETURN(cudaMalloc((void **)&d_disparity_big, m_rows*m_cols * sizeof(float)));
+    CUDA_CHECK_RETURN(cudaMalloc((void **)&d_disparity, m_rows*m_realcols * sizeof(float)));
+    CUDA_CHECK_RETURN(cudaMalloc((void **)&d_ground_function, m_rows*m_realcols * sizeof(float)));
+    CUDA_CHECK_RETURN(cudaMalloc((void **)&d_normalization_ground, m_rows * sizeof(float)));
+    CUDA_CHECK_RETURN(cudaMalloc((void **)&d_inv_sigma2_ground, m_rows * sizeof(float)));
+    CUDA_CHECK_RETURN(cudaMalloc((void **)&d_object_disparity_range, m_max_dis * sizeof(float)));
+    CUDA_CHECK_RETURN(cudaMalloc((void **)&d_object_lut, rows_power2*m_realcols*m_max_dis * sizeof(float)));
+    CUDA_CHECK_RETURN(cudaMalloc((void **)&d_obj_cost_lut, m_max_dis*m_max_dis * sizeof(float)));
+
+    CUDA_CHECK_RETURN(cudaMemcpy(d_object_disparity_range, m_object_disparity_range, sizeof(float)*m_max_dis,
+        cudaMemcpyHostToDevice));
+    CUDA_CHECK_RETURN(cudaMemcpy(d_obj_cost_lut, m_obj_cost_lut, sizeof(float)*m_max_dis*m_max_dis,
+        cudaMemcpyHostToDevice));
+
+    m_params.rows = m_rows;
+    m_params.cols = m_realcols;
+    m_params.max_dis = m_max_dis;
+    m_params.rows_log = m_rows_log;
+    m_params.normalization_sky = m_normalization_sky;
+    m_params.inv_sigma2_sky = m_inv_sigma2_sky;
+    m_params.exportProbabilitiesParameters = m_export_probabilities_params;
+    m_params.cameraParameters = m_camera_parameters;
+    m_params.modelParameters = m_model_params;
+    m_params.probabilitiesParameters = m_probabilities_params;
+    m_params.rows_power2 = rows_power2;
+    m_params.max_dis_log = m_max_dis_log;
 }
 
 void Stixels::StixelsImpl::free_image_memory() {
+    delete[] m_cost_table;
+    delete[] m_index_table;
+    delete[] m_stixels;
+    if (m_model_params.columnStep > 1) {
+        CUDA_CHECK_RETURN(cudaFreeHost(m_disp_im_modified));
+    }
+    delete[] m_column;
+    delete[] m_sum;
+    delete[] m_valid;
+    delete[] m_ground_function;
+    delete[] m_normalization_ground;
+    delete[] m_inv_sigma2_ground;
+    delete[] m_normalization_object;
+    delete[] m_inv_sigma2_object;
+    delete[] m_object_disparity_range;
+    delete[] m_obj_cost_lut;
+    delete[] m_log_lut;
 
+    CUDA_CHECK_RETURN(cudaFree(d_disparity_big));
+    CUDA_CHECK_RETURN(cudaFree(d_disparity));
+    CUDA_CHECK_RETURN(cudaFree(d_ground_function));
+    CUDA_CHECK_RETURN(cudaFree(d_normalization_ground));
+    CUDA_CHECK_RETURN(cudaFree(d_inv_sigma2_ground));
+    CUDA_CHECK_RETURN(cudaFree(d_object_disparity_range));
+    CUDA_CHECK_RETURN(cudaFree(d_object_lut));
+    CUDA_CHECK_RETURN(cudaFree(d_stixels));
+    CUDA_CHECK_RETURN(cudaFree(d_obj_cost_lut));
 }
 
 template<typename T>
-void Stixels::StixelsImpl::PrintTable(T *table) {
+void Stixels::StixelsImpl::printTable(T *table) {
     for (int i = m_rows - 1; i >= 0; i--) {
         std::cout << i << "\t" << table[i * 3] << "\t" << table[i * 3 + 1]
             << "\t" << table[i * 3 + 2] << std::endl;
@@ -557,16 +550,12 @@ float Stixels::Compute() {
     return m_impl->Compute();
 }
 
-Section* Stixels::GetStixels() {
-    return m_impl->GetStixels();
+Section* Stixels::FetchStixels() {
+    return m_impl->FetchStixels();
 }
 
-int Stixels::GetRealCols() {
-    return m_impl->GetRealCols();
-}
-
-int Stixels::GetMaxSections() {
-    return m_impl->GetMaxSections();
+int Stixels::FetchRealCols() {
+    return m_impl->FetchRealCols();
 }
 
 void Stixels::Finish() {

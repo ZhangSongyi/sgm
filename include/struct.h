@@ -55,6 +55,7 @@ struct StixelModelParameters {
     float epsilon;
     float rangeObjectsZ;
     int widthMargin;
+    int maxSections;
 };
 
 struct DisparityParameters {
@@ -73,7 +74,6 @@ struct StixelParameters {
     float normalization_sky;
     float inv_sigma2_sky;
     float max_dis_log;
-    int max_sections;
     StixelModelParameters modelParameters;
     CameraParameters cameraParameters;
     EstimatedCameraParameters estimatedCameraParameters;

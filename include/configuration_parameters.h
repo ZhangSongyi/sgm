@@ -40,7 +40,8 @@ const StixelModelParameters stixel_model_parameters = {
     /* medianStep        = */ false,
     /* epsilon           = */ 3.0f,
     /* rangeObjectsZ     = */ 10.20f, // in meters
-    /* widthMargin       = */ 0
+    /* widthMargin       = */ 0,
+    /* maxSections       = */ 50
 };
 
 struct DisparityParameters disparity_parameters {

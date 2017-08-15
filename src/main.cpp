@@ -235,18 +235,17 @@ int main(int argc, char *argv[]) {
         stixles.SetCameraParameters(camera_parameters, estimated_camera_parameters);
         
         elapsed_time_ms = stixles.Compute();
-        Section *stx = stixles.GetStixels();
-        int max_segments = stixles.GetMaxSections();
+        Section *stx = stixles.FetchStixels();
 
         cv::Mat left_frame_stx;
         left_frame.copyTo(left_frame_stx);
 
         std::vector< std::vector<Section> > stixels;
-        stixels.resize(stixles.GetRealCols());
+        stixels.resize(stixles.FetchRealCols());
 
         for (size_t i = 0; i < stixels.size(); i++) {
-            for (size_t j = 0; j < max_segments; j++) {
-                Section section = stx[i*max_segments + j];
+            for (size_t j = 0; j < stixel_model_parameters.maxSections; j++) {
+                Section section = stx[i*stixel_model_parameters.maxSections + j];
                 if (section.type == -1) {
                     break;
                 }

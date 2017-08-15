@@ -446,7 +446,7 @@ __global__ void StixelsKernel(const pixel_t* __restrict__ d_disparity, const Sti
 				sec.vB = prev_vT+1;
 				sec.disparity = (float) ComputeMean(sec.vB, sec.vT, sum, valid, column);
 
-				d_stixels[col*params.max_sections+i] = sec;
+				d_stixels[col*params.modelParameters.maxSections+i] = sec;
 
 				type = index_table[min_idx] % 3;
 				vT = prev_vT;
@@ -455,7 +455,7 @@ __global__ void StixelsKernel(const pixel_t* __restrict__ d_disparity, const Sti
 			} while(prev_vT != -1);
 			Section sec;
 			sec.type = -1;
-			d_stixels[col*params.max_sections+i] = sec;
+			d_stixels[col*params.modelParameters.maxSections +i] = sec;
 		}
 	}
 }
