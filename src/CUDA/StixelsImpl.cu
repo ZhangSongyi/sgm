@@ -58,14 +58,8 @@ private: /*CUDA Host Pointer*/
     pixel_t *m_disp_im_modified;
 
     // Probabilities
-    float m_pout;
-    float m_pout_sky;
-    float m_pnexists_given_ground;
-    float m_pnexists_given_object;
-    float m_pnexists_given_sky;
-    float m_pord;
-    float m_pgrav;
-    float m_pblg;
+    ProbabilitiesParameters m_probabilities_params;
+    ExportProbabilitiesParameters m_export_probabilities_params;
 
     // Camera parameters
     float m_focal;
@@ -111,16 +105,8 @@ private: /*CUDA Host Pointer*/
     // Frequently used values
     float m_max_dis_log;
     float m_rows_log;
-    float m_pnexists_given_sky_log;
-    float m_nopnexists_given_sky_log;
-    float m_pnexists_given_ground_log;
-    float m_nopnexists_given_ground_log;
-    float m_pnexists_given_object_log;
-    float m_nopnexists_given_object_log;
 
     // Data Term precomputation
-    float m_puniform;
-    float m_puniform_sky;
     float m_normalization_sky;
     float m_inv_sigma2_sky;
     float *m_normalization_ground;
@@ -155,6 +141,8 @@ private:
     float GetDataCostObject(const float fn, const int dis, const float d);
     float ComputeObjectDisparityRange(const float previous_mean);
     pixel_t ComputeMean(const int vB, const int vT, const int u);
+    ExportProbabilitiesParameters ComputeProbabilitiesParameters(ProbabilitiesParameters params,
+        int max_dist, int rows);
     float GroundFunction(const int v);
     float FastLog(float v);
     template<typename T>
@@ -197,16 +185,7 @@ void Stixels::StixelsImpl::Initialize() {
     m_log_lut[LOG_LUT_SIZE] = 0.0f;
 
 	// Frequently used values
-	m_max_dis_log = logf(m_max_disf);
-	m_rows_log = logf((float)m_rows);
-	m_puniform_sky = m_max_dis_log - logf(m_pout_sky);
-	m_puniform = m_max_dis_log - logf(m_pout);
-	m_pnexists_given_sky_log = -logf(m_pnexists_given_sky);
-	m_nopnexists_given_sky_log = -logf(1.0f-m_pnexists_given_sky);
-	m_pnexists_given_ground_log = -logf(m_pnexists_given_ground);
-	m_nopnexists_given_ground_log = -logf(1.0f-m_pnexists_given_ground);
-	m_pnexists_given_object_log = -logf(m_pnexists_given_object);
-	m_nopnexists_given_object_log = -logf(1.0f-m_pnexists_given_object);
+	
 
 	// Data term precomputation
 	m_normalization_ground = new float[m_rows];
@@ -256,23 +235,17 @@ void Stixels::StixelsImpl::Initialize() {
 	m_params.cols = m_realcols;
 	m_params.max_dis = m_max_dis;
 	m_params.rows_log = m_rows_log;
-	m_params.pnexists_given_sky_log = m_pnexists_given_sky_log;
 	m_params.normalization_sky = m_normalization_sky;
 	m_params.inv_sigma2_sky = m_inv_sigma2_sky;
-	m_params.puniform_sky = m_puniform_sky;
-	m_params.nopnexists_given_sky_log = m_nopnexists_given_sky_log;
-	m_params.pnexists_given_ground_log = m_pnexists_given_ground_log;
-	m_params.puniform = m_puniform;
-	m_params.nopnexists_given_ground_log = m_nopnexists_given_ground_log;
-	m_params.pnexists_given_object_log = m_pnexists_given_object_log;
-	m_params.nopnexists_given_object_log = m_nopnexists_given_object_log;
+    m_params.exportProbabilitiesParameters = ComputeProbabilitiesParameters(
+        m_probabilities_params, m_max_dis, m_rows);
 	m_params.baseline = m_baseline;
 	m_params.focal = m_focal;
 	m_params.range_objects_z = m_range_objects_z;
-	m_params.pord = m_pord;
+	m_params.pord = m_probabilities_params.ord;
 	m_params.epsilon = m_epsilon;
-	m_params.pgrav = m_pgrav;
-	m_params.pblg = m_pblg;
+	m_params.pgrav = m_probabilities_params.grav;
+	m_params.pblg = m_probabilities_params.blg;
 	m_params.rows_power2 = rows_power2;
 	m_params.max_sections = m_max_sections;
 	m_params.max_dis_log = m_max_dis_log;
@@ -321,14 +294,31 @@ void Stixels::StixelsImpl::SetDisparityImage(pixel_t *disp_im) {
 }
 
 void Stixels::StixelsImpl::SetProbabilities(ProbabilitiesParameters params) {
-	m_pout = params.out;
-	m_pout_sky = params.outSky;
-	m_pnexists_given_ground = (params.groundGivenNExist*params.nExistDis)/ params.ground;
-	m_pnexists_given_object = (params.objectGivenNExist*params.nExistDis)/ params.object;
-	m_pnexists_given_sky = (params.skyGivenNExist*params.nExistDis)/ params.sky;
-	m_pord = params.ord;
-	m_pgrav = params.grav;
-	m_pblg = params.blg;
+    m_probabilities_params = params;
+    m_export_probabilities_params = ComputeProbabilitiesParameters(params, m_max_dis, m_rows);
+}
+
+ExportProbabilitiesParameters Stixels::StixelsImpl::ComputeProbabilitiesParameters(
+    ProbabilitiesParameters params, int max_dist, int rows) {
+    ExportProbabilitiesParameters ex_params;
+
+    float pnexists_given_ground = (params.groundGivenNExist*params.nExistDis) / params.ground;
+    float pnexists_given_object = (params.objectGivenNExist*params.nExistDis) / params.object;
+    float pnexists_given_sky    = (params.skyGivenNExist   *params.nExistDis) / params.sky;
+
+    m_max_dis_log = logf(m_max_disf);
+    m_rows_log = logf((float)m_rows);
+
+    ex_params.uniformSky = m_max_dis_log - logf(params.outSky);
+    ex_params.uniform = m_max_dis_log - logf(params.out);
+    ex_params.nExistsGivenSkyLOG = -logf(pnexists_given_sky);
+    ex_params.nExistsGivenSkyNLOG = -logf(1.0f - pnexists_given_sky);
+    ex_params.nExistsGivenGroundLOG = -logf(pnexists_given_ground);
+    ex_params.nExistsGivenGroundNLOG = -logf(1.0f - pnexists_given_ground);
+    ex_params.nExistsGivenObjectLOG = -logf(pnexists_given_object);
+    ex_params.nExistsGivenObjectNLOG = -logf(1.0f - pnexists_given_object);
+
+    return ex_params;
 }
 
 void Stixels::StixelsImpl::SetCameraParameters(int vhor, float focal, float baseline, float camera_tilt,
@@ -453,7 +443,7 @@ pixel_t Stixels::StixelsImpl::ComputeMean(const int vB, const int vT, const int 
 
 void Stixels::StixelsImpl::PrecomputeGround() {
 	const float fb = (m_focal*m_baseline)/m_camera_height;
-	const float pout = m_pout;
+	const float pout = m_probabilities_params.out;
 
 	for(int v = 0; v < m_rows; v++) {
 		const float fn = GroundFunction(v);
@@ -472,7 +462,7 @@ void Stixels::StixelsImpl::PrecomputeGround() {
 }
 
 void Stixels::StixelsImpl::PrecomputeObject() {
-	const float pout = m_pout;
+	const float pout = m_probabilities_params.out;
 
 	for(int dis = 0; dis < m_max_dis; dis++) {
 		const float fn = (float) dis;
@@ -488,20 +478,20 @@ void Stixels::StixelsImpl::PrecomputeObject() {
 }
 
 float Stixels::StixelsImpl::GetDataCostObject(const float fn, const int dis, const float d) {
-	float data_cost = m_pnexists_given_object_log;
+    float data_cost = m_export_probabilities_params.nExistsGivenObjectLOG;
 	if(!ALLOW_INVALID_DISPARITIES || d != INVALID_DISPARITY) {
 		const float model_diff = (d-fn);
 		const float pgaussian = m_normalization_object[dis] + model_diff*model_diff*m_inv_sigma2_object[dis];
 
-		const float p_data = fminf(m_puniform, pgaussian);
-		data_cost = p_data + m_nopnexists_given_object_log;
+		const float p_data = fminf(m_export_probabilities_params.uniform, pgaussian);
+		data_cost = p_data + m_export_probabilities_params.nExistsGivenObjectNLOG;
 	}
 	return data_cost;
 }
 
 void Stixels::StixelsImpl::PrecomputeSky() {
 	const float sigma = m_sigma_sky;
-	const float pout = m_pout_sky;
+	const float pout = m_probabilities_params.outSky;
 
 	const float a_range = 0.5f*(erf(m_max_disf/(sigma*sqrtf(2.0f)))-erf(0.0f));
 	m_normalization_sky = FastLog(a_range) - logf((1.0f - pout)/(sigma*sqrtf(2.0f*PIFLOAT)));

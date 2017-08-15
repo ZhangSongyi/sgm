@@ -259,15 +259,21 @@ __global__ void StixelsKernel(const pixel_t* __restrict__ d_disparity, const Sti
 		sum[row] = d;
 #endif
 
-		sky_lut[row] = (row < params.vhor) ? MAX_LOGPROB : GetDataCostSky(d, params.pnexists_given_sky_log,
-				params.normalization_sky, params.inv_sigma2_sky, params.puniform_sky,
-				params.nopnexists_given_sky_log);
+        sky_lut[row] = (row < params.vhor) ? MAX_LOGPROB : GetDataCostSky(d, 
+            params.exportProbabilitiesParameters.nExistsGivenSkyLOG,
+            params.normalization_sky, 
+            params.inv_sigma2_sky, 
+            params.exportProbabilitiesParameters.uniformSky,
+            params.exportProbabilitiesParameters.nExistsGivenSkyNLOG);
 
 		ground_function[row] = d_ground_function[row];
 		const float gf = ground_function[row];
 		ground_lut[row] = (row >= params.vhor) ? MAX_LOGPROB : GetDataCostGround(gf, row, d,
-				params.pnexists_given_ground_log, d_normalization_ground, d_inv_sigma2_ground,
-				params.puniform, params.nopnexists_given_ground_log);
+			params.exportProbabilitiesParameters.nExistsGivenGroundLOG, 
+            d_normalization_ground, 
+            d_inv_sigma2_ground,
+			params.exportProbabilitiesParameters.uniform, 
+            params.exportProbabilitiesParameters.nExistsGivenGroundNLOG);
 
 		// Reason: Usage of "column" in the precomputation of Object LUT and
 		//			need writes to luts before ComputePrefixSum
