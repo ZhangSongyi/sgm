@@ -47,7 +47,6 @@ public:
     pixel_t * FetchDisparityResultPixelD();
     void Finish();
 
-
 private: /*CUDA Host Pointer*/
     uint8_t *h_disparity;
     uint8_t *h_disparity_colored;
@@ -162,6 +161,7 @@ void DisparityEstimation::DisparityEstimationImpl::LoadImagesD(uint8_t* d_left, 
         size_cube_l = size*MAX_DISPARITY;
         malloc_memory();
     }
+
     d_im0_input = d_left;
     d_im1_input = d_right;
 }

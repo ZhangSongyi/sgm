@@ -42,6 +42,7 @@ public:
 private:
     void ComputeCameraProperties(cv::Mat vDisp, const float rho, const float theta, EstimatedCameraParameters& roadParams) const;
     bool ComputeHough(uint8_t *vDisp, float& rho, float& theta, EstimatedCameraParameters& roadParams);
+    void LoadDisparityImageCore(const pixel_t* m_disp, cv::Size imageSize, cudaMemcpyKind dir);
 
 private: /*CUDA Host Pointer*/
     CameraParameters m_cameraParameters;
@@ -104,7 +105,7 @@ void RoadEstimation::RoadEstimationImpl::Finish() {
     free_memory();
 }
 
-void RoadEstimation::RoadEstimationImpl::LoadDisparityImage(const pixel_t* m_disp, cv::Size imageSize) {
+inline void RoadEstimation::RoadEstimationImpl::LoadDisparityImageCore(const pixel_t* disp, cv::Size imageSize, cudaMemcpyKind dir) {
     if (m_cols != imageSize.width || m_rows != imageSize.height) {
         debug_log("WARNING: cols or rows are different");
         if (!first_alloc) {
@@ -118,25 +119,16 @@ void RoadEstimation::RoadEstimationImpl::LoadDisparityImage(const pixel_t* m_dis
     }
     CUDA_CHECK_RETURN(cudaMemset(d_maximum, 0, 1 * sizeof(int)));
     CUDA_CHECK_RETURN(cudaMemset(d_vDisp, 0, MAX_DISPARITY*m_rows * sizeof(int)));
-    CUDA_CHECK_RETURN(cudaMemcpy(d_disparity, m_disp, m_rows*m_cols * sizeof(pixel_t), cudaMemcpyHostToDevice));
+    CUDA_CHECK_RETURN(cudaMemcpy(d_disparity, disp, m_rows*m_cols * sizeof(pixel_t), dir));
     d_disparity_input = d_disparity;
 }
 
+void RoadEstimation::RoadEstimationImpl::LoadDisparityImage(const pixel_t* m_disp, cv::Size imageSize) {
+    LoadDisparityImageCore(m_disp, imageSize, cudaMemcpyHostToDevice);
+}
+
 void RoadEstimation::RoadEstimationImpl::LoadDisparityImageD(pixel_t* d_disp, cv::Size imageSize) {
-    if (m_cols != imageSize.width || m_rows != imageSize.height) {
-        debug_log("WARNING: cols or rows are different");
-        if (!first_alloc) {
-            debug_log("Freeing memory");
-            free_memory();
-        }
-        first_alloc = false;
-        m_cols = imageSize.width;
-        m_rows = imageSize.height;
-        malloc_memory();
-    }
-    d_disparity_input = d_disp;
-    CUDA_CHECK_RETURN(cudaMemset(d_maximum, 0, 1 * sizeof(int)));
-    CUDA_CHECK_RETURN(cudaMemset(d_vDisp, 0, MAX_DISPARITY*m_rows * sizeof(int)));
+    LoadDisparityImageCore(d_disp, imageSize, cudaMemcpyDeviceToDevice);
 }
 
 bool RoadEstimation::RoadEstimationImpl::Compute() {

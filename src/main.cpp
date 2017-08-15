@@ -228,8 +228,8 @@ int main(int argc, char *argv[]) {
             continue;
         }
 
-        stixles.LoadDisparityImage(disparityResultPixelD, rect_size, estimated_camera_parameters);
-        stixles.SetDisparityImage(disparityResultPixelD);
+        stixles.LoadDisparityImageD(disparityResultPixelD, rect_size, estimated_camera_parameters);
+        //stixles.SetDisparityImage(disparityResultPixelD);
         elapsed_time_ms = stixles.Compute();
         Section *stx = stixles.FetchStixels();
 
