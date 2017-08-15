@@ -143,6 +143,7 @@ int main(int argc, char *argv[]) {
     road_estimation.Initialize();
     disparity_estimation.SetParameter(p1, p2);
     road_estimation.SetCameraParameters(camera_parameters);
+    //stixles.SetParameters(probabilities_parameters, camera_parameters, disparity_parameters, stixel_model_parameters);
 
     cv::Mat left_frame, right_frame, left_frame1, right_frame1;
     cv::Mat disparity_im, disparity_im_color;
@@ -182,9 +183,9 @@ int main(int argc, char *argv[]) {
 
             mix_frame = cv::Mat::zeros(cv::Size(rect_size.width, rect_size.height * 2), CV_8UC3);
 
-            stixles.SetDisparityParameters(rect_size.height, rect_size.width, MAX_DISPARITY, sigma_disparity_object, sigma_disparity_ground, sigma_sky);
+            stixles.SetDisparityParameters(rect_size.height, rect_size.width, disparity_parameters);
             stixles.SetProbabilities(probabilities_parameters);
-            stixles.SetModelParameters(column_step, median_step, epsilon, range_objects_z, width_margin);
+            stixles.SetModelParameters(stixel_model_parameters);
             stixles.SetCameraParameters(camera_parameters, estimated_camera_parameters);
             stixles.Initialize();
         }
@@ -208,7 +209,7 @@ int main(int argc, char *argv[]) {
         disparity_im_color = disparity_estimation.FetchColoredDisparityResult();
         pixel_t* disparityResultPixelD = disparity_estimation.FetchDisparityResultPixelD();
         stixles.SetDisparityImage(disparityResultPixelD);
-        road_estimation.LoadImagesD(disparityResultPixelD, rect_size);
+        road_estimation.LoadDisparityImageD(disparityResultPixelD, rect_size);
         const bool ok = road_estimation.Compute();
         if (!ok) {
             printf("Can't compute road estimation\n");
@@ -234,18 +235,17 @@ int main(int argc, char *argv[]) {
         stixles.SetCameraParameters(camera_parameters, estimated_camera_parameters);
         
         elapsed_time_ms = stixles.Compute();
-        Section *stx = stixles.GetStixels();
-        int max_segments = stixles.GetMaxSections();
+        Section *stx = stixles.FetchStixels();
 
         cv::Mat left_frame_stx;
         left_frame.copyTo(left_frame_stx);
 
         std::vector< std::vector<Section> > stixels;
-        stixels.resize(stixles.GetRealCols());
+        stixels.resize(stixles.FetchRealCols());
 
         for (size_t i = 0; i < stixels.size(); i++) {
-            for (size_t j = 0; j < max_segments; j++) {
-                Section section = stx[i*max_segments + j];
+            for (size_t j = 0; j < stixel_model_parameters.maxSections; j++) {
+                Section section = stx[i*stixel_model_parameters.maxSections + j];
                 if (section.type == -1) {
                     break;
                 }
@@ -296,9 +296,9 @@ int main(int argc, char *argv[]) {
                 }
                 // Don't show ground
                 if (sec.type != GROUND) {
-                    const int x = i*column_step + width_margin;
+                    const int x = i*stixel_model_parameters.columnStep + stixel_model_parameters.widthMargin;
                     const int y = sec.vT;
-                    const int width = column_step;
+                    const int width = stixel_model_parameters.columnStep;
                     int height = sec.vB - sec.vT + 1;
 
                     cv::Mat roi = left_frame_stx(cv::Rect(x, y, width, height));

@@ -34,8 +34,8 @@ public:
     ~RoadEstimationImpl();
     void Initialize();
     void SetCameraParameters(const CameraParameters param);
-    void LoadImages(const pixel_t* m_disp, cv::Size imageSize);
-    void LoadImagesD(pixel_t* d_disp, cv::Size imageSize);
+    void LoadDisparityImage(const pixel_t* m_disp, cv::Size imageSize);
+    void LoadDisparityImageD(pixel_t* d_disp, cv::Size imageSize);
     bool Compute();
     void Finish();
     EstimatedCameraParameters FetchEstimatedCameraParameters() { return m_estimatedCameraParameters; }
@@ -104,7 +104,7 @@ void RoadEstimation::RoadEstimationImpl::Finish() {
     free_memory();
 }
 
-void RoadEstimation::RoadEstimationImpl::LoadImages(const pixel_t* m_disp, cv::Size imageSize) {
+void RoadEstimation::RoadEstimationImpl::LoadDisparityImage(const pixel_t* m_disp, cv::Size imageSize) {
     if (m_cols != imageSize.width || m_rows != imageSize.height) {
         debug_log("WARNING: cols or rows are different");
         if (!first_alloc) {
@@ -122,7 +122,7 @@ void RoadEstimation::RoadEstimationImpl::LoadImages(const pixel_t* m_disp, cv::S
     d_disparity_input = d_disparity;
 }
 
-void RoadEstimation::RoadEstimationImpl::LoadImagesD(pixel_t* d_disp, cv::Size imageSize) {
+void RoadEstimation::RoadEstimationImpl::LoadDisparityImageD(pixel_t* d_disp, cv::Size imageSize) {
     if (m_cols != imageSize.width || m_rows != imageSize.height) {
         debug_log("WARNING: cols or rows are different");
         if (!first_alloc) {
@@ -237,14 +237,14 @@ void RoadEstimation::SetCameraParameters(const CameraParameters param)
     m_impl->SetCameraParameters(param);
 }
 
-void RoadEstimation::LoadImages(const pixel_t* m_disp, cv::Size imageSize)
+void RoadEstimation::LoadDisparityImage(const pixel_t* m_disp, cv::Size imageSize)
 {
-    m_impl->LoadImages(m_disp, imageSize);
+    m_impl->LoadDisparityImage(m_disp, imageSize);
 }
 
-void RoadEstimation::LoadImagesD(pixel_t* d_disp, cv::Size imageSize)
+void RoadEstimation::LoadDisparityImageD(pixel_t* d_disp, cv::Size imageSize)
 {
-    m_impl->LoadImagesD(d_disp, imageSize);
+    m_impl->LoadDisparityImageD(d_disp, imageSize);
 }
 
 bool RoadEstimation::Compute() {

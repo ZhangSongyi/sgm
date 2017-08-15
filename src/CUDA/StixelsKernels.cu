@@ -371,9 +371,9 @@ __global__ void StixelsKernel(const pixel_t* __restrict__ d_disparity, const Sti
 					const int index_psky = vT*3+SKY;
 
 					const float cost_sky_prior1 = GetPriorCostSkyFromGround(vB, previous_mean, params.estimatedCameraParameters.horizonPoint,
-							params.epsilon, ground_function, prior_cost) + cost_table[previous_vT*3+GROUND];
+							params.modelParameters.epsilon, ground_function, prior_cost) + cost_table[previous_vT*3+GROUND];
 
-					const float cost_sky_prior2 = GetPriorCostSkyFromObject(previous_mean, params.epsilon,
+					const float cost_sky_prior2 = GetPriorCostSkyFromObject(previous_mean, params.modelParameters.epsilon,
 							prior_cost) + cost_table[previous_vT*3+OBJECT];
 
 					const float curr_cost_sky = cost_table[index_psky];
@@ -393,13 +393,13 @@ __global__ void StixelsKernel(const pixel_t* __restrict__ d_disparity, const Sti
 
 				const float cost_object_prior1 = GetPriorCostObjectFromGround(vB, obj_fn, previous_mean,
 						prior_objfromground, params.max_dis, max_disf, ground_function, prior_cost,
-						params.epsilon, params.probabilitiesParameters.grav, params.probabilitiesParameters.blg) + cost_table[previous_vT*3+GROUND];
+						params.modelParameters.epsilon, params.probabilitiesParameters.grav, params.probabilitiesParameters.blg) + cost_table[previous_vT*3+GROUND];
 
 				const float cost_object_prior2 = GetPriorCostObjectFromObject(vB, obj_fn, previous_mean,
 						prior_objfromobj, object_disparity_range, params.estimatedCameraParameters.horizonPoint, params.max_dis, max_disf,
 						params.probabilitiesParameters.ord, prior_cost) + cost_table[previous_vT*3+OBJECT];
 				const float cost_object_prior3 = GetPriorCostObjectFromSky(obj_fn, max_disf, prior_cost,
-						params.epsilon) + cost_table[previous_vT*3+SKY];
+						params.modelParameters.epsilon) + cost_table[previous_vT*3+SKY];
 
 				const float curr_cost_object = cost_table[index_pobject];
 				const float cost_object = cost_object_data + fminf(fminf(cost_object_prior1, cost_object_prior2),
@@ -446,7 +446,7 @@ __global__ void StixelsKernel(const pixel_t* __restrict__ d_disparity, const Sti
 				sec.vB = prev_vT+1;
 				sec.disparity = (float) ComputeMean(sec.vB, sec.vT, sum, valid, column);
 
-				d_stixels[col*params.max_sections+i] = sec;
+				d_stixels[col*params.modelParameters.maxSections+i] = sec;
 
 				type = index_table[min_idx] % 3;
 				vT = prev_vT;
@@ -455,7 +455,7 @@ __global__ void StixelsKernel(const pixel_t* __restrict__ d_disparity, const Sti
 			} while(prev_vT != -1);
 			Section sec;
 			sec.type = -1;
-			d_stixels[col*params.max_sections+i] = sec;
+			d_stixels[col*params.modelParameters.maxSections +i] = sec;
 		}
 	}
 }
