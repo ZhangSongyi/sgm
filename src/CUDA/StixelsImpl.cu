@@ -60,13 +60,7 @@ private: /*CUDA Host Pointer*/
     ProbabilitiesParameters m_probabilities_params;
     ExportProbabilitiesParameters m_export_probabilities_params;
     CameraParameters m_camera_parameters;
-
-    // Camera parameters
-    float m_camera_tilt;
-    float m_sigma_camera_tilt;
-    float m_camera_height;
-    float m_sigma_camera_height;
-    int m_vhor;
+    EstimatedCameraParameters m_estimated_camera_params;
 
     // Disparity Parameters
     int m_max_dis;
@@ -79,7 +73,6 @@ private: /*CUDA Host Pointer*/
     // Other model parameters
     int m_column_step;
     bool m_median_step;
-    float m_alpha_ground;
     float m_range_objects_z;
     float m_epsilon;
     int m_width_margin;
@@ -317,13 +310,8 @@ ExportProbabilitiesParameters Stixels::StixelsImpl::ComputeProbabilitiesParamete
 
 void Stixels::StixelsImpl::SetCameraParameters(CameraParameters camera_params, EstimatedCameraParameters estimated_camera_params) {
     m_camera_parameters = camera_params;
-	m_vhor = m_rows-estimated_camera_params.horizonPoint-1;
-	m_camera_tilt = estimated_camera_params.pitch;
-	// Degrees to radians
-	m_sigma_camera_tilt = estimated_camera_params.sigmaCameraTilt;
-	m_camera_height = estimated_camera_params.cameraHeight;
-	m_sigma_camera_height = estimated_camera_params.sigmaCameraHeight;
-	m_alpha_ground = estimated_camera_params.slope;
+    m_estimated_camera_params = estimated_camera_params;
+    m_estimated_camera_params.horizonPoint = m_rows - estimated_camera_params.horizonPoint - 1;
 }
 
 void Stixels::StixelsImpl::SetDisparityParameters(const int rows, const int cols, const int max_dis,
@@ -370,7 +358,7 @@ float Stixels::StixelsImpl::Compute() {
 	    printf("Error: %s %d\n", cudaGetErrorString(err), err);
 	}
 
-	m_params.estimatedCameraParameters.horizonPoint = m_vhor;
+	m_params.estimatedCameraParameters.horizonPoint = m_estimated_camera_params.horizonPoint;
 
 	ComputeObjectLUT<<<m_realcols, 512>>>(d_disparity, d_obj_cost_lut, d_object_lut, m_params,
 			(int) powf(2, ceilf(log2f(m_rows))));
@@ -434,16 +422,16 @@ pixel_t Stixels::StixelsImpl::ComputeMean(const int vB, const int vT, const int 
 }
 
 void Stixels::StixelsImpl::PrecomputeGround() {
-	const float fb = (m_camera_parameters.focal *m_camera_parameters.baseline)/m_camera_height;
+	const float fb = (m_camera_parameters.focal *m_camera_parameters.baseline)/ m_estimated_camera_params.cameraHeight;
 	const float pout = m_probabilities_params.out;
 
 	for(int v = 0; v < m_rows; v++) {
 		const float fn = GroundFunction(v);
 		m_ground_function[v] = fn;
 
-		const float x = m_camera_tilt+(float)(m_vhor-v)/ m_camera_parameters.focal;
-		const float sigma2_road = fb*fb*(m_sigma_camera_height*m_sigma_camera_height
-				*x*x/(m_camera_height*m_camera_height)+m_sigma_camera_tilt*m_sigma_camera_tilt);
+		const float x = m_estimated_camera_params.pitch+(float)(m_estimated_camera_params.horizonPoint-v)/ m_camera_parameters.focal;
+		const float sigma2_road = fb*fb*(m_estimated_camera_params.cameraHeight*m_estimated_camera_params.sigmaCameraHeight
+				*x*x/(m_estimated_camera_params.cameraHeight*m_estimated_camera_params.cameraHeight)+ m_estimated_camera_params.sigmaCameraTilt*m_estimated_camera_params.sigmaCameraTilt);
         const float sigma = sqrtf(m_sigma_disparity_ground*m_sigma_disparity_ground+sigma2_road);
 
 		const float a_range = 0.5f*(erf((m_max_disf-fn)/(sigma*sqrtf(2.0f)))-erf((-fn)/(sigma*sqrtf(2.0f))));
@@ -491,7 +479,7 @@ void Stixels::StixelsImpl::PrecomputeSky() {
 }
 
 float Stixels::StixelsImpl::GroundFunction(const int v) {
-	return m_alpha_ground*(float)(m_vhor-v);
+	return m_estimated_camera_params.slope*(float)(m_estimated_camera_params.horizonPoint-v);
 }
 
 float Stixels::StixelsImpl::ComputeObjectDisparityRange(const float previous_mean) {
