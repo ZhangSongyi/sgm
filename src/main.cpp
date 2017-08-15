@@ -208,7 +208,7 @@ int main(int argc, char *argv[]) {
         disparity_im_color = disparity_estimation.FetchColoredDisparityResult();
         pixel_t* disparityResultPixelD = disparity_estimation.FetchDisparityResultPixelD();
         stixles.SetDisparityImage(disparityResultPixelD);
-        road_estimation.LoadImagesD(disparityResultPixelD, rect_size);
+        road_estimation.LoadDisparityImageD(disparityResultPixelD, rect_size);
         const bool ok = road_estimation.Compute();
         if (!ok) {
             printf("Can't compute road estimation\n");

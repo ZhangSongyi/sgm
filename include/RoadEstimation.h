@@ -33,8 +33,8 @@ public:
 	~RoadEstimation();
 	void Initialize();
     void SetCameraParameters(const CameraParameters param);
-    void LoadImages(const pixel_t* m_disp, cv::Size imageSize);
-    void LoadImagesD(pixel_t* d_disp, cv::Size imageSize);
+    void LoadDisparityImage(const pixel_t* m_disp, cv::Size imageSize);
+    void LoadDisparityImageD(pixel_t* d_disp, cv::Size imageSize);
 	bool Compute();
 	void Finish();
     EstimatedCameraParameters FetchEstimatedCameraParameters();

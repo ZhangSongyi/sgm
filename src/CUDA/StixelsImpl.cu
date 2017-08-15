@@ -38,6 +38,8 @@ public:
     StixelsImpl();
     ~StixelsImpl();
     void Initialize();
+    void LoadDisparityImage(const pixel_t* m_disp, cv::Size imageSize, EstimatedCameraParameters estimated_camera_params);
+    void LoadDisparityImageD(pixel_t* d_disp, cv::Size imageSize, EstimatedCameraParameters estimated_camera_params);
     float Compute();
     Section* GetStixels() { return m_stixels; }
     int GetRealCols() { return m_realcols; }
@@ -131,6 +133,12 @@ private:
     float FastLog(float v);
     template<typename T>
     void PrintTable(T *table);
+
+private:
+    void malloc_memory();
+    void free_memory();
+    void malloc_image_memory();
+    void free_image_memory();
 };
 
 Stixels::StixelsImpl::StixelsImpl() {}
@@ -299,6 +307,16 @@ ExportProbabilitiesParameters Stixels::StixelsImpl::ComputeProbabilitiesParamete
     ex_params.nExistsGivenObjectNLOG = -logf(1.0f - pnexists_given_object);
 
     return ex_params;
+}
+
+void Stixels::StixelsImpl::LoadDisparityImage(const pixel_t* m_disp, 
+    cv::Size imageSize, EstimatedCameraParameters estimated_camera_params) {
+
+}
+
+void Stixels::StixelsImpl::LoadDisparityImageD(pixel_t* d_disp, 
+    cv::Size imageSize, EstimatedCameraParameters estimated_camera_params) {
+
 }
 
 void Stixels::StixelsImpl::SetCameraParameters(CameraParameters camera_params, EstimatedCameraParameters estimated_camera_params) {
@@ -479,12 +497,44 @@ float Stixels::StixelsImpl::ComputeObjectDisparityRange(const float previous_mea
 	return range_disp;
 }
 
+void Stixels::StixelsImpl::malloc_memory() {
+
+}
+
+void Stixels::StixelsImpl::free_memory() {
+
+}
+
+void Stixels::StixelsImpl::malloc_image_memory() {
+
+}
+
+void Stixels::StixelsImpl::free_image_memory() {
+
+}
+
 template<typename T>
 void Stixels::StixelsImpl::PrintTable(T *table) {
     for (int i = m_rows - 1; i >= 0; i--) {
         std::cout << i << "\t" << table[i * 3] << "\t" << table[i * 3 + 1]
             << "\t" << table[i * 3 + 2] << std::endl;
     }
+}
+
+void malloc_memory() {
+
+}
+
+void free_memory() {
+
+}
+
+void malloc_image_memory() {
+
+}
+
+void free_image_memory() {
+
 }
 
 Stixels::Stixels() : 
@@ -494,6 +544,16 @@ Stixels::~Stixels() {}
 
 void Stixels::Initialize() {
     m_impl->Initialize();
+}
+
+void Stixels::LoadDisparityImage(const pixel_t* m_disp, 
+    cv::Size imageSize, EstimatedCameraParameters estimated_camera_params) {
+    m_impl->LoadDisparityImage(m_disp, imageSize, estimated_camera_params);
+}
+
+void Stixels::LoadDisparityImageD(pixel_t* d_disp, 
+    cv::Size imageSize, EstimatedCameraParameters estimated_camera_params) {
+    m_impl->LoadDisparityImageD(d_disp, imageSize, estimated_camera_params);
 }
 
 float Stixels::Compute() {
