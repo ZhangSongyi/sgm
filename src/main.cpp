@@ -184,7 +184,7 @@ int main(int argc, char *argv[]) {
 
             stixles.SetDisparityParameters(rect_size.height, rect_size.width, MAX_DISPARITY, sigma_disparity_object, sigma_disparity_ground, sigma_sky);
             stixles.SetProbabilities(probabilities_parameters);
-            stixles.SetModelParameters(column_step, median_step, epsilon, range_objects_z, width_margin);
+            stixles.SetModelParameters(stixel_model_parameters);
             stixles.SetCameraParameters(camera_parameters, estimated_camera_parameters);
             stixles.Initialize();
         }
@@ -296,9 +296,9 @@ int main(int argc, char *argv[]) {
                 }
                 // Don't show ground
                 if (sec.type != GROUND) {
-                    const int x = i*column_step + width_margin;
+                    const int x = i*stixel_model_parameters.columnStep + stixel_model_parameters.widthMargin;
                     const int y = sec.vT;
-                    const int width = column_step;
+                    const int width = stixel_model_parameters.columnStep;
                     int height = sec.vB - sec.vT + 1;
 
                     cv::Mat roi = left_frame_stx(cv::Rect(x, y, width, height));

@@ -49,8 +49,7 @@ public:
 	void SetCameraParameters(CameraParameters camera_params, EstimatedCameraParameters estimated_camera_params);
     void SetDisparityParameters(const int rows, const int cols, const int max_dis,
     		const float sigma_disparity_object, const float sigma_disparity_ground, float sigma_sky);
-	void SetModelParameters(const int column_step, const bool median_step, float epsilon, float range_objects_z,
-			int width_margin);
+	void SetModelParameters(StixelModelParameters stixel_model_parameters);
 private:
     class StixelsImpl;
     std::auto_ptr<StixelsImpl> m_impl;

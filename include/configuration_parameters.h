@@ -40,19 +40,18 @@ const ProbabilitiesParameters probabilities_parameters = {
     /*blg                = */ 0.04f
 };
 
+const StixelModelParameters stixel_model_parameters = {
+    /* columnStep        = */ 5,
+    /* medianStep        = */ false,
+    /* epsilon           = */ 3.0f,
+    /* rangeObjectsZ     = */ 10.20f, // in meters
+    /* widthMargin       = */ 0
+};
+
 EstimatedCameraParameters estimated_camera_parameters = {
     /*sigmaCameraTilt    = */ 0.05f * (PIFLOAT) / 180.0f,
     /*sigmaCameraHeight  = */ 0.05f
 };
-
-// Virtual parameters
-const int column_step = 5;
-const int width_margin = 0;
-
-/* Model Parameters */
-const bool median_step = false;
-const float epsilon = 3.0f;
-const float range_objects_z = 10.20f; // in meters
 
 const float max_dis_display = (float)30;
 

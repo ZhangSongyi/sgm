@@ -48,8 +48,7 @@ public:
     void SetCameraParameters(CameraParameters camera_params, EstimatedCameraParameters estimated_camera_params);
     void SetDisparityParameters(const int rows, const int cols, const int max_dis,
         const float sigma_disparity_object, const float sigma_disparity_ground, float sigma_sky);
-    void SetModelParameters(const int column_step, const bool median_step, float epsilon, float range_objects_z,
-        int width_margin);
+    void SetModelParameters(StixelModelParameters stixel_model_parameters);
 
 private: /*CUDA Host Pointer*/
     // Variables
@@ -61,6 +60,7 @@ private: /*CUDA Host Pointer*/
     ExportProbabilitiesParameters m_export_probabilities_params;
     CameraParameters m_camera_parameters;
     EstimatedCameraParameters m_estimated_camera_params;
+    StixelModelParameters m_model_params;
 
     // Disparity Parameters
     int m_max_dis;
@@ -69,13 +69,6 @@ private: /*CUDA Host Pointer*/
     float m_sigma_disparity_object;
     float m_sigma_disparity_ground;
     float m_sigma_sky;
-
-    // Other model parameters
-    int m_column_step;
-    bool m_median_step;
-    float m_range_objects_z;
-    float m_epsilon;
-    int m_width_margin;
 
     // Tables
     float *m_cost_table;
@@ -146,7 +139,7 @@ Stixels::StixelsImpl::~StixelsImpl() {}
 
 void Stixels::StixelsImpl::Initialize() {
 	m_disp_im_modified = m_disp_im;
-	m_realcols = (m_cols-m_width_margin)/m_column_step;
+	m_realcols = (m_cols- m_model_params.widthMargin)/ m_model_params.columnStep;
 
 	m_cost_table = new float[3*m_realcols];
 	m_index_table = new int16_t[m_rows*3*m_realcols];
@@ -156,7 +149,7 @@ void Stixels::StixelsImpl::Initialize() {
 	m_stixels = new Section[m_realcols*m_max_sections];
 	CUDA_CHECK_RETURN(cudaMalloc((void **)&d_stixels, m_realcols*m_max_sections*sizeof(Section)));
 
-	if(m_column_step > 1) {
+	if(m_model_params.columnStep > 1) {
 		CUDA_CHECK_RETURN(cudaMallocHost((void**)&m_disp_im_modified, m_rows*m_realcols*sizeof(float)));
 	}
 
@@ -230,20 +223,20 @@ void Stixels::StixelsImpl::Initialize() {
 	m_params.inv_sigma2_sky = m_inv_sigma2_sky;
     m_params.exportProbabilitiesParameters = m_export_probabilities_params;
     m_params.cameraParameters = m_camera_parameters;
-	m_params.range_objects_z = m_range_objects_z;
+	m_params.range_objects_z = m_model_params.rangeObjectsZ;
     m_params.probabilitiesParameters = m_probabilities_params;
-	m_params.epsilon = m_epsilon;
+	m_params.epsilon = m_model_params.epsilon;
 	m_params.rows_power2 = rows_power2;
 	m_params.max_sections = m_max_sections;
 	m_params.max_dis_log = m_max_dis_log;
-	m_params.width_margin = m_width_margin;
+	m_params.width_margin = m_model_params.widthMargin;
 }
 
 void Stixels::StixelsImpl::Finish() {
 	delete[] m_cost_table;
 	delete[] m_index_table;
 	delete[] m_stixels;
-	if(m_column_step > 1) {
+	if(m_model_params.columnStep > 1) {
 		CUDA_CHECK_RETURN(cudaFreeHost(m_disp_im_modified));
 	}
 	delete[] m_column;
@@ -325,13 +318,8 @@ void Stixels::StixelsImpl::SetDisparityParameters(const int rows, const int cols
 	m_sigma_sky = sigma_sky;
 }
 
-void Stixels::StixelsImpl::SetModelParameters(const int column_step, const bool median_step, float epsilon,
-		float range_objects_z, int width_margin) {
-	m_column_step = column_step;
-	m_median_step = median_step;
-	m_epsilon = epsilon;
-	m_range_objects_z = range_objects_z;
-	m_width_margin = width_margin;
+void Stixels::StixelsImpl::SetModelParameters(StixelModelParameters stixel_model_parameters) {
+    m_model_params = stixel_model_parameters;
 }
 
 float Stixels::StixelsImpl::Compute() {
@@ -350,8 +338,8 @@ float Stixels::StixelsImpl::Compute() {
 	CUDA_CHECK_RETURN(cudaMemcpy(d_inv_sigma2_ground, m_inv_sigma2_ground, sizeof(float)*m_rows,
 			cudaMemcpyHostToDevice));
 
-	JoinColumns<<<divUp(m_rows*m_realcols, 256), 256>>>(d_disparity_big, d_disparity, m_column_step,
-			m_median_step, m_width_margin, m_rows, m_cols, m_realcols);
+	JoinColumns<<<divUp(m_rows*m_realcols, 256), 256>>>(d_disparity_big, d_disparity, m_model_params.columnStep,
+        m_model_params.medianStep, m_model_params.widthMargin, m_rows, m_cols, m_realcols);
 
 	cudaError_t err = cudaGetLastError();
 	if (err != cudaSuccess) {
@@ -447,7 +435,7 @@ void Stixels::StixelsImpl::PrecomputeObject() {
 	for(int dis = 0; dis < m_max_dis; dis++) {
 		const float fn = (float) dis;
 
-		const float sigma_object = fn*fn*m_range_objects_z/(m_camera_parameters.focal *m_camera_parameters.baseline);
+		const float sigma_object = fn*fn*m_model_params.rangeObjectsZ/(m_camera_parameters.focal *m_camera_parameters.baseline);
         const float sigma = sqrtf(m_sigma_disparity_object*m_sigma_disparity_object+sigma_object*sigma_object);
 
 		const float a_range = 0.5f*(erf((m_max_disf-fn)/(sigma*sqrtf(2.0f)))-erf((-fn)/(sigma*sqrtf(2.0f))));
@@ -485,7 +473,7 @@ float Stixels::StixelsImpl::GroundFunction(const int v) {
 float Stixels::StixelsImpl::ComputeObjectDisparityRange(const float previous_mean) {
 	float range_disp = 0.0f;
 	if(previous_mean != 0) {
-		const float pmean_plus_z = (m_camera_parameters.focal *m_camera_parameters.baseline /previous_mean) + m_range_objects_z;
+		const float pmean_plus_z = (m_camera_parameters.focal *m_camera_parameters.baseline /previous_mean) + m_model_params.rangeObjectsZ;
 		range_disp = previous_mean - (m_camera_parameters.focal *m_camera_parameters.baseline /pmean_plus_z);
 	}
 	return range_disp;
@@ -546,7 +534,6 @@ void Stixels::SetDisparityParameters(const int rows, const int cols, const int m
         sigma_disparity_object, sigma_disparity_ground, sigma_sky);
 }
 
-void Stixels::SetModelParameters(const int column_step, const bool median_step, float epsilon, float range_objects_z,
-    int width_margin) {
-    m_impl->SetModelParameters(column_step, median_step, epsilon, range_objects_z, width_margin);
+void Stixels::SetModelParameters(StixelModelParameters stixel_model_parameters) {
+    m_impl->SetModelParameters(stixel_model_parameters);
 }
