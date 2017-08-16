@@ -173,7 +173,7 @@ bool RoadEstimation::RoadEstimationImpl::ComputeHough(uint8_t *d_vDispBinary, fl
 		// Compute camera position
 		ComputeCameraProperties(vDisp, rho, theta, estimatedCameraParams);
 
-		//printf("%f (%f %f) %f (%f %f)\n", pitch, m_minPitch, m_maxPitch, cameraHeight, m_minCameraHeight, m_maxCameraHeight);
+		printf("%f (%f %f) %f (%f %f)\n", estimatedCameraParams.pitch, m_minPitch, m_maxPitch, estimatedCameraParams.cameraHeight, m_minCameraHeight, m_maxCameraHeight);
 		//if (pitch>=m_minPitch && pitch<=m_maxPitch && cameraHeight>=m_minCameraHeight && cameraHeight<=m_maxCameraHeight) {
 		if (estimatedCameraParams.pitch>=m_minPitch && estimatedCameraParams.pitch<=m_maxPitch && 
             estimatedCameraParams.cameraHeight >= m_minCameraHeight && estimatedCameraParams.cameraHeight <= m_maxCameraHeight) {
