@@ -38,9 +38,13 @@ set(
     -gencode=arch=compute_61,code=sm_61
     )
 
+file(GLOB HEADER_FILES
+    include/*.h
+    include/*.hpp
+    include/*.cuh)
 file(GLOB SRC_FILES src/*.cpp)
 file(GLOB CUDA_FILES src/CUDA/*.cu)
 
-cuda_add_executable(sgm ${CUDA_FILES} ${SRC_FILES})
+cuda_add_executable(sgm ${HEADER_FILES} ${CUDA_FILES} ${SRC_FILES})
 
 target_link_libraries(sgm  ${OpenCV_LIBS} ${CUDA_LIBRARIES})
