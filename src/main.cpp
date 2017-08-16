@@ -52,94 +52,12 @@
 #include "DisparityEstimation.h"
 #include "Stixels.h"
 #include "RoadEstimation.h"
+#include "showStixels.h"
 
-void HSV_to_RGB(const float h, const float s, const float v, int *cr, int *cg, int *cb) {
-    const float h_prima = h*360.0f / 60.0f;
 
-    const float c = v*s;
-    const float h_mod = fmodf(h_prima, 2.0f);
-    const float x = c*(1.0f - fabsf(h_mod - 1.0f));
-
-    float r = 0.0f;
-    float g = 0.0f;
-    float b = 0.0f;
-
-    if (h_prima >= 0) {
-        if (h_prima < 1.0f) {
-            r = c;
-            g = x;
-            b = 0.0f;
-        }
-        else if (h_prima < 2.0f) {
-            r = x;
-            g = c;
-            b = 0.0f;
-        }
-        else if (h_prima < 3.0f) {
-            r = 0.0f;
-            g = c;
-            b = x;
-        }
-        else if (h_prima < 4.0f) {
-            r = 0.0f;
-            g = x;
-            b = c;
-        }
-        else if (h_prima < 5.0f) {
-            r = x;
-            g = 0.0f;
-            b = c;
-        }
-        else if (h_prima < 6.0f) {
-            r = c;
-            g = 0.0f;
-            b = x;
-        }
-    }
-
-    const float m = v - c;
-    r = (r + m)*255.0f;
-    g = (g + m)*255.0f;
-    b = (b + m)*255.0f;
-    *cr = (int)r;
-    *cg = (int)g;
-    *cb = (int)b;
-
-}
 
 cv::Mat colorTable;
 bool colorTableInitialized = false;
-
-void ColorizeDisparityMap(cv::InputArray disparityGrey, cv::OutputArray disparityColor)
-{
-    if (!colorTableInitialized)
-    {
-        colorTable.create(cv::Size(256, 1), CV_8UC3);
-        for (int i = 0; i < 256; i++)
-        {
-            int r, g, b;
-            r = std::max(std::min(std::min(i - 32 * 3, 32 * 9 - i) * 4, 255), 0);//r
-            g = std::max(std::min(std::min(i - 32 * 1, 32 * 7 - i) * 4, 255), 0);//g
-            b = std::max(std::min(std::min(i - 32 * (-1), 32 * 5 - i) * 4, 255), 0);//b
-            colorTable.at<cv::Vec3b>(i) = cv::Vec3b(b, g, r);
-        }
-        colorTableInitialized = true;
-    }
-
-    disparityColor.createSameSize(disparityGrey, CV_8UC3);
-    cv::Mat greyMat = disparityGrey.getMat();
-    cv::Mat colorMat = disparityColor.getMat();
-    for (int row = 0; row < greyMat.rows; row++)
-    {
-        for (int col = 0; col < greyMat.cols; col++)
-        {
-            uchar origin = greyMat.at<uchar>(row, col);
-            int originS = (int)(origin * 255.0 / MAX_DISPARITY);
-            //colorMat.at<Vec3b>(row, col) = Vec3b(255 - originS, min(originS, 255 - originS) * 2, originS);
-            colorMat.at<cv::Vec3b>(row, col) = colorTable.at<cv::Vec3b>(originS);
-        }
-    }
-}
 
 int main(int argc, char *argv[]) {
 	if(argc < 3) {
@@ -170,7 +88,12 @@ int main(int argc, char *argv[]) {
     DisparityEstimation disparity_estimation;
     Stixels stixles;
     RoadEstimation road_estimation;
-    disparity_estimation.Initialize(p1, p2);
+    disparity_estimation.Initialize();
+    road_estimation.Initialize();
+    stixles.Initialize();
+    disparity_estimation.SetParameter(p1, p2);
+    road_estimation.SetCameraParameters(camera_parameters);
+    stixles.SetParameters(probabilities_parameters, camera_parameters, disparity_parameters, stixel_model_parameters);
 
     cv::Mat left_frame, right_frame, left_frame1, right_frame1;
     cv::Mat disparity_im, disparity_im_color;
@@ -180,11 +103,6 @@ int main(int argc, char *argv[]) {
     cv::Rect rect_roi_down = cv::Rect(0, 0, 0, 0);
 
     cv::Mat mix_frame;
-    float camera_height;
-    float camera_tilt;
-    float alpha_ground;
-    int vhor;
-
     cv::namedWindow("Test");
 
     int currentFrame = 0;
@@ -193,7 +111,9 @@ int main(int argc, char *argv[]) {
         if (!left_video.read(left_frame) || !right_video.read(right_frame))
         {
             std::cerr << "Reach the end of video file" << std::endl;
-            return EXIT_SUCCESS;
+            left_video.set(CV_CAP_PROP_POS_FRAMES, 0);
+            right_video.set(CV_CAP_PROP_POS_FRAMES, 0);
+            continue;
         }
         currentFrame++;
         if (left_frame.size() != right_frame.size()) {
@@ -204,21 +124,19 @@ int main(int argc, char *argv[]) {
         if (left_frame.size() != frame_size)
         {
             frame_size = left_frame.size();
-            rect_size = cv::Size(frame_size.width / 4 * 4, frame_size.height / 4 * 4);
-            rect_roi_up = cv::Rect(0, 0, rect_size.width, rect_size.height);
-            rect_roi_down = cv::Rect(0, rect_size.height, rect_size.width, rect_size.height);
-
             std::cout << "FrameSize:" << frame_size.height << "*" << frame_size.width << std::endl;
-            std::cout << "CutSize:" << rect_size.height << "*" << rect_size.width << std::endl;
-
-            mix_frame = cv::Mat::zeros(cv::Size(rect_size.width, rect_size.height * 2), CV_8UC3);
-
-            stixles.SetDisparityParameters(rect_size.height, rect_size.width, MAX_DISPARITY, sigma_disparity_object, sigma_disparity_ground, sigma_sky);
-            stixles.SetProbabilities(pout, pout_sky, pground_given_nexist, pobject_given_nexist, psky_given_nexist, pnexist_dis, pground, pobject, psky, pord, pgrav, pblg);
-            stixles.SetModelParameters(column_step, median_step, epsilon, range_objects_z, width_margin);
-            stixles.SetCameraParameters(0, focal, baseline, 0.0f, sigma_camera_tilt, 0.0f, sigma_camera_height, 0.0f);
-            stixles.Initialize();
-            road_estimation.Initialize(camera_center_y, baseline, focal, rect_size.height, rect_size.width, MAX_DISPARITY);
+            cv::Size newSize = cv::Size(frame_size.width / 4 * 4, frame_size.height / 4 * 4);
+            if (newSize != rect_size)
+            {
+                rect_size = newSize;
+                rect_roi_up = cv::Rect(0, 0, rect_size.width, rect_size.height);
+                rect_roi_down = cv::Rect(0, rect_size.height, rect_size.width, rect_size.height);
+                std::cout << "CutSize:" << rect_size.height << "*" << rect_size.width << std::endl;
+                mix_frame = cv::Mat::zeros(cv::Size(rect_size.width, rect_size.height * 2), CV_8UC3);
+                road_estimation.UpdateImageSize(rect_size);
+                stixles.UpdateImageSize(rect_size);
+                disparity_estimation.UpdateImageSize(rect_size);
+            }
         }
 
         left_frame = left_frame(rect_roi_up);
@@ -231,171 +149,58 @@ int main(int argc, char *argv[]) {
         if (right_frame.channels() > 1) {
             cv::cvtColor(right_frame, right_frame1, CV_RGB2GRAY);
         }
-        
+        disparity_estimation.LoadImages(left_frame1, right_frame1);
         float elapsed_time_ms;
-        disparity_im = disparity_estimation.Compute(left_frame1, right_frame1, &elapsed_time_ms);
+        disparity_estimation.Compute(&elapsed_time_ms);
         std::cout << currentFrame << ":" << elapsed_time_ms << "ms" << std::endl;
-
-        float* disparityResultGPU = disparity_estimation.GetDisparityResultFloatGPU();
-        stixles.SetDisparityImage(disparityResultGPU);
-        const bool ok = road_estimation.Compute(disparityResultGPU);
+        disparity_im = disparity_estimation.FetchDisparityResult();
+        disparity_im_color = disparity_estimation.FetchColoredDisparityResult();
+        pixel_t* disparityResultPixelD = disparity_estimation.FetchDisparityResultPixelD();
+        road_estimation.LoadDisparityImageD(disparityResultPixelD);
+        const bool ok = road_estimation.Compute();
         if (!ok) {
             printf("Can't compute road estimation\n");
-            first_time = false;
             continue;
         }
 
         // Get Camera Parameters
-        camera_tilt = road_estimation.GetPitch();
-        camera_height = road_estimation.GetCameraHeight();
-        vhor = road_estimation.getHorizonPoint();
-        alpha_ground = road_estimation.GetSlope();
+        estimated_camera_parameters = road_estimation.FetchEstimatedCameraParameters();
 
-        if (camera_tilt == 0 && camera_height == 0 && vhor == 0 && alpha_ground == 0) {
+        if (estimated_camera_parameters.pitch == 0 && estimated_camera_parameters.cameraHeight == 0 && estimated_camera_parameters.horizonPoint == 0 && estimated_camera_parameters.slope == 0) {
             printf("Can't compute road estimation\n");
             continue;
         }
 
-        std::cout << "Camera Parameters -> Tilt: " << camera_tilt << " Height: " << camera_height << " vHor: " << vhor << " alpha_ground: " << alpha_ground << std::endl;
+        std::cout << "Camera Parameters -> Tilt: " << estimated_camera_parameters.pitch << " Height: " << estimated_camera_parameters.cameraHeight << " vHor: " << estimated_camera_parameters.horizonPoint << " alpha_ground: " << estimated_camera_parameters.slope << std::endl;
 
-        if (camera_height < 0 || camera_height > 5 || vhor < 0 || alpha_ground < 0) {
+        if (estimated_camera_parameters.cameraHeight < 0 || estimated_camera_parameters.cameraHeight > 5 ||
+            estimated_camera_parameters.horizonPoint < 0 || estimated_camera_parameters.slope < 0) {
             printf("Error happened in computing road estimation\n");
             continue;
         }
 
-        stixles.SetCameraParameters(vhor, focal, baseline, camera_tilt, sigma_camera_tilt, camera_height, sigma_camera_height, alpha_ground);
-        
-        elapsed_time_ms = stixles.Compute();
-        Section *stx = stixles.GetStixels();
-        int max_segments = stixles.GetMaxSections();
+        stixles.LoadDisparityImageD(disparityResultPixelD, estimated_camera_parameters);
+        stixles.Compute(&elapsed_time_ms);
+        Section *stx = stixles.FetchStixels();
+        int realCols = stixles.FetchRealCols();
 
         cv::Mat left_frame_stx;
-        left_frame.copyTo(left_frame_stx);
-
-        std::vector<std::vector<Section>> stixels;
-        stixels.resize(stixles.GetRealCols());
-
-        for (size_t i = 0; i < stixels.size(); i++) {
-            for (size_t j = 0; j < max_segments; j++) {
-                Section section = stx[i*max_segments + j];
-                if (section.type == -1) {
-                    break;
-                }
-                // If disparity is 0 it is sky
-                if (section.type == OBJECT && section.disparity < 1.0f) {
-                    section.type = SKY;
-                }
-                stixels[i].push_back(section);
-            }
-            // Column finished
-        }
-
-        for (size_t i = 0; i < stixels.size(); i++) {
-            std::vector<Section> column = stixels.at(i);
-            Section prev;
-            prev.type = -1;
-            bool have_prev = false;
-            for (size_t j = 0; j < column.size(); j++) {
-                Section sec = column.at(j);
-                sec.vB = left_frame_stx.rows - 1 - sec.vB;
-                sec.vT = left_frame_stx.rows - 1 - sec.vT;
-
-                // If disparity is 0 it is sky
-                if (sec.type == OBJECT && sec.disparity < 1.0f) {
-                    sec.type = SKY;
-                }
-
-                // Sky on top of sky
-                if (j > 0) {
-                    if (!have_prev) {
-                        prev = column.at(j - 1);
-                        prev.vB = left_frame_stx.rows - 1 - prev.vB;
-                        prev.vT = left_frame_stx.rows - 1 - prev.vT;
-                    }
-
-                    if (sec.type == SKY && prev.type == SKY) {
-                        sec.vT = prev.vT;
-                        have_prev = true;
-                    }
-                    else {
-                        have_prev = false;
-                    }
-                }
-
-                // If the next segment is a sky, skip current
-                if (j + 1 < column.size() && sec.type == SKY && column.at(j + 1).type == SKY) {
-                    continue;
-                }
-                // Don't show ground
-                if (sec.type != GROUND) {
-                    const int x = i*column_step + width_margin;
-                    const int y = sec.vT;
-                    const int width = column_step;
-                    int height = sec.vB - sec.vT + 1;
-
-                    cv::Mat roi = left_frame_stx(cv::Rect(x, y, width, height));
-
-                    // Sky = blue
-                    int cr = 0;
-                    int cg = 0;
-                    int cb = 255;
-
-                    // Object = from green to red (far to near)
-                    if (sec.type == OBJECT) {
-                        const float dis = (max_dis_display - sec.disparity) / max_dis_display;
-                        float dis_f = dis;
-                        if (dis_f < 0.0f) {
-                            dis_f = 0.0f;
-                        }
-                        const float h = dis_f*0.3f;
-                        const float s = 1.0f;
-                        const float v = 1.0f;
-
-                        HSV_to_RGB(h, s, v, &cr, &cg, &cb);
-                    }
-
-                    cv::Mat color;
-                    const int top = (roi.rows < 2) ? 0 : 1;
-                    const int bottom = (roi.rows < 2) ? 0 : 1;
-                    const int left = 1;
-                    const int right = 1;
-
-                    color.create(roi.rows - top - bottom, roi.cols - left - right, roi.type());
-                    color.setTo(cv::Scalar(cb, cg, cr));
-
-                    cv::Mat color_padded;
-                    color_padded.create(roi.rows, roi.cols, color.type());
-
-                    copyMakeBorder(color, color_padded, top, bottom, left, right, cv::BORDER_CONSTANT, cv::Scalar(255, 255, 255));
-                    const double alpha = 0.6;
-                    cv::addWeighted(color_padded, alpha, roi, 1.0 - alpha, 0.0, roi);
-
-                }
-            }
-        }
-        if (vhor != -1) {
-            // Draw Horizon Line
-            int thickness = 2;
-            int lineType = 8;
-            line(left_frame_stx,
-                cv::Point(0, vhor),
-                cv::Point(left_frame_stx.cols - 1, vhor),
-                cv::Scalar(0, 0, 0),
-                thickness,
-                lineType);
-        }
+        ShowStixels(left_frame, left_frame_stx, stx, stixel_model_parameters, realCols, estimated_camera_parameters.horizonPoint, max_dis_display);
 
         //MIX IMGS TOGETHER
         //left_frame.copyTo(mix_frame(rect_roi_up));
         //cv::cvtColor(disparity_im, disparity_im_color, CV_GRAY2BGR);
         left_frame_stx.copyTo(mix_frame(rect_roi_up));
-        ColorizeDisparityMap(disparity_im, disparity_im_color);
         disparity_im_color.copyTo(mix_frame(rect_roi_down));
         cv::imshow("Test", mix_frame);
 
-        int c = cv::waitKey(100);
-        if ((char)c == 27) break;
-        if (c > 0) cv::waitKey(0);
+        char c = cv::waitKey(100);
+        if (c == 27) break;
+        if (c != -1)
+        {
+            std::cout << "PAUSED" << c << std::endl;
+            cv::waitKey(0);
+        }
 
     }
 

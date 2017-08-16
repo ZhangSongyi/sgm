@@ -25,7 +25,7 @@
 #include "configuration.h"
 #include "CenterSymmetricCensusKernel.cuh"
 #include "HammingDistanceCostKernel.cuh"
-#include "MedianFilterKernels.cuh"
+#include "ImageProcessorKernels.cuh"
 #include "CostAggregationKernels.hpp"
 #include "debug.h"
 
@@ -34,14 +34,26 @@ class DisparityEstimation::DisparityEstimationImpl
 public:
     DisparityEstimationImpl() {}
     ~DisparityEstimationImpl() {}
-    void Initialize(const uint8_t p1, const uint8_t p2);
-    cv::Mat Compute(cv::Mat left, cv::Mat right, float *elapsed_time_ms);
+    void Initialize();
+    void SetParameter(const uint8_t p1, const uint8_t p2);
+    void SetColorTable(const uint8_t color_table[MAX_DISPARITY * 3]);
+    void UpdateImageSize(const cv::Size image_size);
+    void LoadImages(cv::Mat left, cv::Mat right);
+    void LoadImagesD(uint8_t* left, uint8_t* right);
+    void Compute(float *elapsed_time_ms);
+    cv::Mat FetchDisparityResult();
+    cv::Mat FetchColoredDisparityResult();
+
+    uint8_t * FetchDisparityResultD() { return d_disparity_filtered_uchar; }
+    pixel_t * FetchDisparityResultPixelD();
     void Finish();
-    uint8_t * GetDisparityResultGPU() { return d_disparity_filtered_uchar; }
-    float * GetDisparityResultFloatGPU() { return d_disparity_filtered_float; }
+
+private:
+    void LoadImagesCore(const uint8_t* d_left, const uint8_t* d_right, cudaMemcpyKind dir);
 
 private: /*CUDA Host Pointer*/
     uint8_t *h_disparity;
+    uint8_t *h_disparity_colored;
     uint8_t p1, p2;
     bool first_alloc;
     uint32_t cols, rows, size, size_cube_l;
@@ -55,7 +67,8 @@ private: /*CUDA Device Pointer*/
     uint8_t *d_cost;
     uint8_t *d_disparity;
     uint8_t *d_disparity_filtered_uchar;
-    float *d_disparity_filtered_float;
+    uint8_t *d_disparity_filtered_colored_uchar;
+    pixel_t *d_disparity_filtered_pixel;
     uint16_t *d_S;
     uint8_t *d_L0;
     uint8_t *d_L1;
@@ -67,46 +80,83 @@ private: /*CUDA Device Pointer*/
 #if PATH_AGGREGATION == 8
     uint8_t *d_L7;
 #endif
+    uint8_t *d_color_table;
 
 private:
     void malloc_memory();
     void free_memory();
 };
 
-void DisparityEstimation::DisparityEstimationImpl::Initialize(const uint8_t p1, const uint8_t p2) {
+void DisparityEstimation::DisparityEstimationImpl::Initialize() {
     // We are not using shared memory, use L1
     //CUDA_CHECK_RETURN(cudaDeviceSetCacheConfig(cudaFuncCachePreferL1));
     //CUDA_CHECK_RETURN(cudaDeviceSetCacheConfig(cudaFuncCachePreferShared));
 
+    //Create default color table
+    uint8_t h_color_table[MAX_DISPARITY * 3];
+    float color_table_section = MAX_DISPARITY / 8.0;
+    float scale_factor = 1024.0 / MAX_DISPARITY;
+    for (int i = 0; i < MAX_DISPARITY; i++)
+    {
+        h_color_table[i * 3 + 0] = std::max(std::min((int)(std::min(i - color_table_section * (-1), color_table_section * 5 - i) * scale_factor), 255), 0);//b
+        h_color_table[i * 3 + 1] = std::max(std::min((int)(std::min(i - color_table_section * 1,    color_table_section * 7 - i) * scale_factor), 255), 0);//g
+        h_color_table[i * 3 + 2] = std::max(std::min((int)(std::min(i - color_table_section * 3,    color_table_section * 9 - i) * scale_factor), 255), 0);//r
+    }
     // Create streams
     CUDA_CHECK_RETURN(cudaStreamCreate(&stream1));
     CUDA_CHECK_RETURN(cudaStreamCreate(&stream2));
     CUDA_CHECK_RETURN(cudaStreamCreate(&stream3));
+    CUDA_CHECK_RETURN(cudaMalloc((void **)&d_color_table, sizeof(uint8_t)*MAX_DISPARITY * 3));
+    CUDA_CHECK_RETURN(cudaMemcpyAsync(d_color_table, h_color_table, MAX_DISPARITY * 3, cudaMemcpyHostToDevice, stream1));
     first_alloc = true;
-    this->p1 = p1;
-    this->p2 = p2;
     rows = 0;
     cols = 0;
 }
 
-cv::Mat DisparityEstimation::DisparityEstimationImpl::Compute(cv::Mat left, cv::Mat right, float *elapsed_time_ms) {
-	if(cols != left.cols || rows != left.rows) {
-		debug_log("WARNING: cols or rows are different");
-		if(!first_alloc) {
-			debug_log("Freeing memory");
-			free_memory();
-		}
-		first_alloc = false;
-		cols = left.cols;
-		rows = left.rows;
-		size = rows*cols;
-		size_cube_l = size*MAX_DISPARITY;
+void DisparityEstimation::DisparityEstimationImpl::UpdateImageSize(const cv::Size image_size) {
+    if (cols != image_size.width || rows != image_size.height) {
+        debug_log("WARNING: cols or rows are different");
+        if (!first_alloc) {
+            debug_log("Freeing memory");
+            free_memory();
+        }
+        first_alloc = false;
+        cols = image_size.width;
+        rows = image_size.height;
+        size = rows*cols;
+        size_cube_l = size*MAX_DISPARITY;
         malloc_memory();
-	}
-	debug_log("Copying images to the GPU");
-	CUDA_CHECK_RETURN(cudaMemcpyAsync(d_im0, left.ptr<uint8_t>(), sizeof(uint8_t)*size, cudaMemcpyHostToDevice, stream1));
-	CUDA_CHECK_RETURN(cudaMemcpyAsync(d_im1, right.ptr<uint8_t>(), sizeof(uint8_t)*size, cudaMemcpyHostToDevice, stream1));
+    }
+}
 
+void DisparityEstimation::DisparityEstimationImpl::SetParameter(const uint8_t _p1, const uint8_t _p2)
+{
+    if (_p1 < _p2) {
+        p1 = _p1;
+        p2 = _p2;
+    }
+}
+
+void DisparityEstimation::DisparityEstimationImpl::SetColorTable(const uint8_t color_table[MAX_DISPARITY * 3])
+{
+    CUDA_CHECK_RETURN(cudaMemcpyAsync(d_im0, color_table, MAX_DISPARITY * 3, cudaMemcpyHostToDevice, stream1));
+}
+
+inline void DisparityEstimation::DisparityEstimationImpl::LoadImagesCore(const uint8_t* left, const uint8_t* right, cudaMemcpyKind dir)
+{
+    CUDA_CHECK_RETURN(cudaMemcpyAsync(d_im0, left, sizeof(uint8_t)*size, dir, stream1));
+    CUDA_CHECK_RETURN(cudaMemcpyAsync(d_im1, right, sizeof(uint8_t)*size, dir, stream1));
+}
+
+void DisparityEstimation::DisparityEstimationImpl::LoadImages(cv::Mat left, cv::Mat right) {
+    LoadImagesCore(left.ptr<uint8_t>(), right.ptr<uint8_t>(), cudaMemcpyHostToDevice);
+}
+
+void DisparityEstimation::DisparityEstimationImpl::LoadImagesD(uint8_t* d_left, uint8_t* d_right) {
+    LoadImagesCore(d_left, d_right, cudaMemcpyDeviceToDevice);
+}
+
+void DisparityEstimation::DisparityEstimationImpl::Compute(float *elapsed_time_ms) {
 	cudaEvent_t start, stop;
 	cudaEventCreate(&start);
 	cudaEventCreate(&stop);
@@ -151,24 +201,44 @@ cv::Mat DisparityEstimation::DisparityEstimationImpl::Compute(cv::Mat left, cv::
 #endif
 	debug_log("Calling Median Filter");
 	MedianFilter3x3<<<(size+MAX_DISPARITY-1)/MAX_DISPARITY, MAX_DISPARITY, 0, stream1>>>(d_disparity, d_disparity_filtered_uchar, rows, cols);
-    TypeConvert<<<(size + MAX_DISPARITY - 1) / MAX_DISPARITY, MAX_DISPARITY, 0, stream1>>>(d_disparity_filtered_uchar, d_disparity_filtered_float, rows, cols);
-
+    
 	cudaEventRecord(stop, 0);
 	CUDA_CHECK_RETURN(cudaDeviceSynchronize());
 	cudaEventElapsedTime(elapsed_time_ms, start, stop);
 	cudaEventDestroy(start);
 	cudaEventDestroy(stop);
+}
 
-	debug_log("Copying final disparity to CPU");
-	CUDA_CHECK_RETURN(cudaMemcpy(h_disparity, d_disparity_filtered_uchar, sizeof(uint8_t)*size, cudaMemcpyDeviceToHost));
+cv::Mat DisparityEstimation::DisparityEstimationImpl::FetchDisparityResult()
+{
+    debug_log("Copying final disparity to CPU");
+    CUDA_CHECK_RETURN(cudaMemcpy(h_disparity, d_disparity_filtered_uchar, sizeof(uint8_t)*size, cudaMemcpyDeviceToHost));
 
-	cv::Mat disparity(rows, cols, CV_8UC1, h_disparity);
-	return disparity;
+    cv::Mat disparity(rows, cols, CV_8UC1, h_disparity);
+    return disparity;
+}
+
+cv::Mat DisparityEstimation::DisparityEstimationImpl::FetchColoredDisparityResult()
+{
+    ColorizeDisparityImage<<<(size + MAX_DISPARITY - 1) / MAX_DISPARITY, MAX_DISPARITY, 0, stream1>>>(d_disparity_filtered_uchar, d_disparity_filtered_colored_uchar, d_color_table, rows, cols);
+
+    debug_log("Copying final disparity to CPU");
+    CUDA_CHECK_RETURN(cudaMemcpy(h_disparity_colored, d_disparity_filtered_colored_uchar, sizeof(uint8_t)*size*3, cudaMemcpyDeviceToHost));
+
+    cv::Mat disparity_colored(rows, cols, CV_8UC3, h_disparity_colored);
+    return disparity_colored;
+}
+
+pixel_t* DisparityEstimation::DisparityEstimationImpl::FetchDisparityResultPixelD() {
+    TypeConvert<<<(size + MAX_DISPARITY - 1) / MAX_DISPARITY, MAX_DISPARITY, 0, stream1>>>(d_disparity_filtered_uchar, d_disparity_filtered_pixel, rows, cols);
+    cudaDeviceSynchronize();
+    return d_disparity_filtered_pixel;
 }
 
 void DisparityEstimation::DisparityEstimationImpl::Finish() {
 	if(!first_alloc) {
 		free_memory();
+        CUDA_CHECK_RETURN(cudaFree(d_color_table));
 		CUDA_CHECK_RETURN(cudaStreamDestroy(stream1));
 		CUDA_CHECK_RETURN(cudaStreamDestroy(stream2));
 		CUDA_CHECK_RETURN(cudaStreamDestroy(stream3));
@@ -193,8 +263,10 @@ void DisparityEstimation::DisparityEstimationImpl::malloc_memory() {
     CUDA_CHECK_RETURN(cudaMalloc((void **)&d_cost, sizeof(uint8_t)*size_cube_l));
     CUDA_CHECK_RETURN(cudaMalloc((void **)&d_disparity, sizeof(uint8_t)*size));
     CUDA_CHECK_RETURN(cudaMalloc((void **)&d_disparity_filtered_uchar, sizeof(uint8_t)*size));
-    CUDA_CHECK_RETURN(cudaMalloc((void **)&d_disparity_filtered_float, sizeof(float)*size));
+    CUDA_CHECK_RETURN(cudaMalloc((void **)&d_disparity_filtered_pixel, sizeof(pixel_t)*size));
+    CUDA_CHECK_RETURN(cudaMalloc((void **)&d_disparity_filtered_colored_uchar, sizeof(uint8_t)*size*3));
     h_disparity = new uint8_t[size];
+    h_disparity_colored = new uint8_t[size*3];
 }
 
 void DisparityEstimation::DisparityEstimationImpl::free_memory() {
@@ -214,10 +286,12 @@ void DisparityEstimation::DisparityEstimationImpl::free_memory() {
 #endif
 	CUDA_CHECK_RETURN(cudaFree(d_disparity));
 	CUDA_CHECK_RETURN(cudaFree(d_disparity_filtered_uchar));
-    CUDA_CHECK_RETURN(cudaFree(d_disparity_filtered_float));
+    CUDA_CHECK_RETURN(cudaFree(d_disparity_filtered_pixel));
+    CUDA_CHECK_RETURN(cudaFree(d_disparity_filtered_colored_uchar));
 	CUDA_CHECK_RETURN(cudaFree(d_cost));
 
 	delete[] h_disparity;
+    delete[] h_disparity_colored;
 }
 
 DisparityEstimation::DisparityEstimation() : 
@@ -225,22 +299,50 @@ DisparityEstimation::DisparityEstimation() :
 
 DisparityEstimation::~DisparityEstimation() {}
 
-void DisparityEstimation::Initialize(const uint8_t p1, const uint8_t p2) {
-    m_impl->Initialize(p1, p2);
+void DisparityEstimation::Initialize() {
+    m_impl->Initialize();
 }
 
-cv::Mat DisparityEstimation::Compute(cv::Mat left, cv::Mat right, float *elapsed_time_ms) {
-    return m_impl->Compute(left, right, elapsed_time_ms);
+void DisparityEstimation::SetParameter(const uint8_t p1, const uint8_t p2) {
+    m_impl->SetParameter(p1, p2);
+}
+
+void DisparityEstimation::SetColorTable(const uint8_t color_table[MAX_DISPARITY * 3]) {
+    m_impl->SetColorTable(color_table);
+}
+
+void DisparityEstimation::UpdateImageSize(cv::Size image_size) {
+    m_impl->UpdateImageSize(image_size);
+}
+
+void DisparityEstimation::LoadImages(cv::Mat left, cv::Mat right) {
+    m_impl->LoadImages(left, right);
+}
+
+void DisparityEstimation::LoadImagesD(uint8_t* left, uint8_t* right) {
+    m_impl->LoadImagesD(left, right);
+}
+
+void DisparityEstimation::Compute(float *elapsed_time_ms) {
+    m_impl->Compute(elapsed_time_ms);
+}
+
+cv::Mat DisparityEstimation::FetchDisparityResult() {
+    return m_impl->FetchDisparityResult();
+}
+
+cv::Mat DisparityEstimation::FetchColoredDisparityResult() {
+    return m_impl->FetchColoredDisparityResult();
+}
+
+uint8_t* DisparityEstimation::FetchDisparityResultD() {
+    return m_impl->FetchDisparityResultD();
+}
+
+float* DisparityEstimation::FetchDisparityResultPixelD() {
+    return m_impl->FetchDisparityResultPixelD();
 }
 
 void DisparityEstimation::Finish() {
     m_impl->Finish();
-}
-
-uint8_t* DisparityEstimation::GetDisparityResultGPU() {
-    return m_impl->GetDisparityResultGPU();
-}
-
-float* DisparityEstimation::GetDisparityResultFloatGPU() {
-    return m_impl->GetDisparityResultFloatGPU();
 }

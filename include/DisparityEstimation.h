@@ -23,17 +23,25 @@
 
 #include <opencv2/opencv.hpp>
 #include <memory>
+#include "configuration.h"
 
 class DisparityEstimation
 {
 public:
     DisparityEstimation();
     ~DisparityEstimation();
-    void Initialize(const uint8_t p1, const uint8_t p2);
-    cv::Mat Compute(cv::Mat left, cv::Mat right, float *elapsed_time_ms);
+    void Initialize();
+    void SetParameter(const uint8_t p1, const uint8_t p2);
+    void SetColorTable(const uint8_t color_table[MAX_DISPARITY * 3]);
+    void UpdateImageSize(cv::Size image_size);
+    void LoadImages(cv::Mat left, cv::Mat right);
+    void LoadImagesD(uint8_t* left, uint8_t* right);
+    void Compute(float *elapsed_time_ms);
+    cv::Mat FetchDisparityResult();
+    cv::Mat FetchColoredDisparityResult();
+    uint8_t* FetchDisparityResultD();
+    pixel_t* FetchDisparityResultPixelD();
     void Finish();
-    uint8_t * GetDisparityResultGPU();
-    float * GetDisparityResultFloatGPU();
 private:
     class DisparityEstimationImpl;
     std::auto_ptr<DisparityEstimationImpl> m_impl;

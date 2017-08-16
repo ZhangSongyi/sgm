@@ -22,11 +22,10 @@
 #include <opencv2/opencv.hpp>
 #include <memory>
 #include "configuration.h"
+#include "struct.h"
 
 #ifndef STIXELS_H_
 #define STIXELS_H_
-
-#define PIFLOAT 3.1416f
 
 #define INVALID_DISPARITY	128.0f
 #define MAX_LOGPROB			10000.0f
@@ -35,61 +34,23 @@
 #define OBJECT	1
 #define SKY		2
 
-struct Section {
-	int type;
-	int vB, vT;
-	float disparity;
-};
-
-struct StixelParameters {
-	int vhor;
-	int rows;
-	int rows_power2;
-	int cols;
-	int max_dis;
-	float rows_log;
-	float pnexists_given_sky_log;
-	float normalization_sky;
-	float inv_sigma2_sky;
-	float puniform_sky;
-	float nopnexists_given_sky_log;
-	float pnexists_given_ground_log;
-	float puniform;
-	float nopnexists_given_ground_log;
-	float pnexists_given_object_log;
-	float nopnexists_given_object_log;
-	float baseline;
-	float focal;
-	float range_objects_z;
-	float pord;
-	float epsilon;
-	float pgrav;
-	float pblg;
-	float max_dis_log;
-	int max_sections;
-	int width_margin;
-};
-
 class Stixels {
 public:
 	Stixels();
 	~Stixels();
 	void Initialize();
-	float Compute();
-	Section* GetStixels();
-	int GetRealCols();
-	int GetMaxSections();
+	void Compute(float* elapsed_time_ms);
+	Section* FetchStixels();
+	int FetchRealCols();
 	void Finish();
-	void SetDisparityImage(pixel_t *disp_im);
-	void SetProbabilities(float pout, float pout_sky, float pground_given_nexist,
-			float pobject_given_nexist, float psky_given_nexist, float pnexist_dis, float pground,
-			float pobject, float psky, float pord, float pgrav, float pblg);
-	void SetCameraParameters(int vhor, float focal, float baseline, float camera_tilt,
-			float sigma_camera_tilt, float camera_height, float sigma_camera_height, float alpha_ground);
-    void SetDisparityParameters(const int rows, const int cols, const int max_dis,
-    		const float sigma_disparity_object, const float sigma_disparity_ground, float sigma_sky);
-	void SetModelParameters(const int column_step, const bool median_step, float epsilon, float range_objects_z,
-			int width_margin);
+    void LoadDisparityImage(const pixel_t* m_disp, EstimatedCameraParameters estimated_camera_params);
+    void LoadDisparityImageD(pixel_t* d_disp, EstimatedCameraParameters estimated_camera_params);
+    void UpdateImageSize(cv::Size image_size);
+    void SetParameters(
+        ProbabilitiesParameters probabilities_params,
+        CameraParameters camera_params,
+        DisparityParameters disparity_params,
+        StixelModelParameters model_params);
 private:
     class StixelsImpl;
     std::auto_ptr<StixelsImpl> m_impl;
