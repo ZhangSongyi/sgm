@@ -33,8 +33,9 @@ public:
     void Initialize();
     void SetParameter(const uint8_t p1, const uint8_t p2);
     void SetColorTable(const uint8_t color_table[MAX_DISPARITY * 3]);
+    void UpdateImageSize(cv::Size image_size);
     void LoadImages(cv::Mat left, cv::Mat right);
-    void LoadImagesD(uint8_t* left, uint8_t* right, cv::Size imageSize);
+    void LoadImagesD(uint8_t* left, uint8_t* right);
     void Compute(float *elapsed_time_ms);
     cv::Mat FetchDisparityResult();
     cv::Mat FetchColoredDisparityResult();

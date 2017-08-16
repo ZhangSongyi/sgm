@@ -141,9 +141,10 @@ int main(int argc, char *argv[]) {
     RoadEstimation road_estimation;
     disparity_estimation.Initialize();
     road_estimation.Initialize();
+    stixles.Initialize();
     disparity_estimation.SetParameter(p1, p2);
     road_estimation.SetCameraParameters(camera_parameters);
-    //stixles.SetParameters(probabilities_parameters, camera_parameters, disparity_parameters, stixel_model_parameters);
+    stixles.SetParameters(probabilities_parameters, camera_parameters, disparity_parameters, stixel_model_parameters);
 
     cv::Mat left_frame, right_frame, left_frame1, right_frame1;
     cv::Mat disparity_im, disparity_im_color;
@@ -174,20 +175,19 @@ int main(int argc, char *argv[]) {
         if (left_frame.size() != frame_size)
         {
             frame_size = left_frame.size();
-            rect_size = cv::Size(frame_size.width / 4 * 4, frame_size.height / 4 * 4);
-            rect_roi_up = cv::Rect(0, 0, rect_size.width, rect_size.height);
-            rect_roi_down = cv::Rect(0, rect_size.height, rect_size.width, rect_size.height);
-
             std::cout << "FrameSize:" << frame_size.height << "*" << frame_size.width << std::endl;
-            std::cout << "CutSize:" << rect_size.height << "*" << rect_size.width << std::endl;
-
-            mix_frame = cv::Mat::zeros(cv::Size(rect_size.width, rect_size.height * 2), CV_8UC3);
-
-            stixles.SetDisparityParameters(rect_size.height, rect_size.width, disparity_parameters);
-            stixles.SetProbabilities(probabilities_parameters);
-            stixles.SetModelParameters(stixel_model_parameters);
-            stixles.SetCameraParameters(camera_parameters, estimated_camera_parameters);
-            stixles.Initialize();
+            cv::Size newSize = cv::Size(frame_size.width / 4 * 4, frame_size.height / 4 * 4);
+            if (newSize != rect_size)
+            {
+                rect_size = newSize;
+                rect_roi_up = cv::Rect(0, 0, rect_size.width, rect_size.height);
+                rect_roi_down = cv::Rect(0, rect_size.height, rect_size.width, rect_size.height);
+                std::cout << "CutSize:" << rect_size.height << "*" << rect_size.width << std::endl;
+                mix_frame = cv::Mat::zeros(cv::Size(rect_size.width, rect_size.height * 2), CV_8UC3);
+                road_estimation.UpdateImageSize(rect_size);
+                stixles.UpdateImageSize(rect_size);
+                disparity_estimation.UpdateImageSize(rect_size);
+            }
         }
 
         left_frame = left_frame(rect_roi_up);
@@ -200,7 +200,6 @@ int main(int argc, char *argv[]) {
         if (right_frame.channels() > 1) {
             cv::cvtColor(right_frame, right_frame1, CV_RGB2GRAY);
         }
-
         disparity_estimation.LoadImages(left_frame1, right_frame1);
         float elapsed_time_ms;
         disparity_estimation.Compute(&elapsed_time_ms);
@@ -208,8 +207,7 @@ int main(int argc, char *argv[]) {
         disparity_im = disparity_estimation.FetchDisparityResult();
         disparity_im_color = disparity_estimation.FetchColoredDisparityResult();
         pixel_t* disparityResultPixelD = disparity_estimation.FetchDisparityResultPixelD();
-        stixles.SetDisparityImage(disparityResultPixelD);
-        road_estimation.LoadDisparityImageD(disparityResultPixelD, rect_size);
+        road_estimation.LoadDisparityImageD(disparityResultPixelD);
         const bool ok = road_estimation.Compute();
         if (!ok) {
             printf("Can't compute road estimation\n");
@@ -232,9 +230,8 @@ int main(int argc, char *argv[]) {
             continue;
         }
 
-        stixles.SetCameraParameters(camera_parameters, estimated_camera_parameters);
-        
-        elapsed_time_ms = stixles.Compute();
+        stixles.LoadDisparityImageD(disparityResultPixelD, estimated_camera_parameters);
+        stixles.Compute(&elapsed_time_ms);
         Section *stx = stixles.FetchStixels();
 
         cv::Mat left_frame_stx;

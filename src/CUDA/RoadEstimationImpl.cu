@@ -34,14 +34,16 @@ public:
     ~RoadEstimationImpl();
     void Initialize();
     void SetCameraParameters(const CameraParameters param);
-    void LoadDisparityImage(const pixel_t* m_disp, cv::Size imageSize);
-    void LoadDisparityImageD(pixel_t* d_disp, cv::Size imageSize);
+    void UpdateImageSize(const cv::Size image_size);
+    void LoadDisparityImage(const pixel_t* m_disp);
+    void LoadDisparityImageD(pixel_t* d_disp);
     bool Compute();
     void Finish();
     EstimatedCameraParameters FetchEstimatedCameraParameters() { return m_estimatedCameraParameters; }
 private:
     void ComputeCameraProperties(cv::Mat vDisp, const float rho, const float theta, EstimatedCameraParameters& roadParams) const;
     bool ComputeHough(uint8_t *vDisp, float& rho, float& theta, EstimatedCameraParameters& roadParams);
+    void LoadDisparityImageCore(const pixel_t* m_disp, cudaMemcpyKind dir);
 
 private: /*CUDA Host Pointer*/
     CameraParameters m_cameraParameters;
@@ -104,39 +106,33 @@ void RoadEstimation::RoadEstimationImpl::Finish() {
     free_memory();
 }
 
-void RoadEstimation::RoadEstimationImpl::LoadDisparityImage(const pixel_t* m_disp, cv::Size imageSize) {
-    if (m_cols != imageSize.width || m_rows != imageSize.height) {
+void RoadEstimation::RoadEstimationImpl::UpdateImageSize(const cv::Size image_size) {
+    if (m_cols != image_size.width || m_rows != image_size.height) {
         debug_log("WARNING: cols or rows are different");
         if (!first_alloc) {
             debug_log("Freeing memory");
             free_memory();
         }
         first_alloc = false;
-        m_cols = imageSize.width;
-        m_rows = imageSize.height;
+        m_cols = image_size.width;
+        m_rows = image_size.height;
         malloc_memory();
     }
+}
+
+inline void RoadEstimation::RoadEstimationImpl::LoadDisparityImageCore(const pixel_t* disp, cudaMemcpyKind dir) {
     CUDA_CHECK_RETURN(cudaMemset(d_maximum, 0, 1 * sizeof(int)));
     CUDA_CHECK_RETURN(cudaMemset(d_vDisp, 0, MAX_DISPARITY*m_rows * sizeof(int)));
-    CUDA_CHECK_RETURN(cudaMemcpy(d_disparity, m_disp, m_rows*m_cols * sizeof(pixel_t), cudaMemcpyHostToDevice));
+    CUDA_CHECK_RETURN(cudaMemcpy(d_disparity, disp, m_rows*m_cols * sizeof(pixel_t), dir));
     d_disparity_input = d_disparity;
 }
 
-void RoadEstimation::RoadEstimationImpl::LoadDisparityImageD(pixel_t* d_disp, cv::Size imageSize) {
-    if (m_cols != imageSize.width || m_rows != imageSize.height) {
-        debug_log("WARNING: cols or rows are different");
-        if (!first_alloc) {
-            debug_log("Freeing memory");
-            free_memory();
-        }
-        first_alloc = false;
-        m_cols = imageSize.width;
-        m_rows = imageSize.height;
-        malloc_memory();
-    }
-    d_disparity_input = d_disp;
-    CUDA_CHECK_RETURN(cudaMemset(d_maximum, 0, 1 * sizeof(int)));
-    CUDA_CHECK_RETURN(cudaMemset(d_vDisp, 0, MAX_DISPARITY*m_rows * sizeof(int)));
+void RoadEstimation::RoadEstimationImpl::LoadDisparityImage(const pixel_t* m_disp) {
+    LoadDisparityImageCore(m_disp, cudaMemcpyHostToDevice);
+}
+
+void RoadEstimation::RoadEstimationImpl::LoadDisparityImageD(pixel_t* d_disp) {
+    LoadDisparityImageCore(d_disp, cudaMemcpyDeviceToDevice);
 }
 
 bool RoadEstimation::RoadEstimationImpl::Compute() {
@@ -149,7 +145,7 @@ bool RoadEstimation::RoadEstimationImpl::Compute() {
 			m_rows, MAX_DISPARITY);
 
     // Compute the Hough transform
-	float rho, theta, horizonPoint, pitch, cameraHeight, slope;
+	float rho, theta;
     EstimatedCameraParameters roadParams;
 	if (ComputeHough(d_vDispBinary, rho, theta, roadParams)) {
 		m_rho = rho;
@@ -232,19 +228,20 @@ void RoadEstimation::Initialize() {
     m_impl->Initialize();
 }
 
-void RoadEstimation::SetCameraParameters(const CameraParameters param)
-{
+void RoadEstimation::SetCameraParameters(const CameraParameters param) {
     m_impl->SetCameraParameters(param);
 }
 
-void RoadEstimation::LoadDisparityImage(const pixel_t* m_disp, cv::Size imageSize)
-{
-    m_impl->LoadDisparityImage(m_disp, imageSize);
+void RoadEstimation::UpdateImageSize(const cv::Size image_size) {
+    m_impl->UpdateImageSize(image_size);
 }
 
-void RoadEstimation::LoadDisparityImageD(pixel_t* d_disp, cv::Size imageSize)
-{
-    m_impl->LoadDisparityImageD(d_disp, imageSize);
+void RoadEstimation::LoadDisparityImage(const pixel_t* m_disp) {
+    m_impl->LoadDisparityImage(m_disp);
+}
+
+void RoadEstimation::LoadDisparityImageD(pixel_t* d_disp) {
+    m_impl->LoadDisparityImageD(d_disp);
 }
 
 bool RoadEstimation::Compute() {
