@@ -38,9 +38,9 @@ public:
     StixelsImpl();
     ~StixelsImpl();
     void Initialize();
-    void LoadDisparityImage(const pixel_t* m_disp, cv::Size imageSize, EstimatedCameraParameters estimated_camera_params);
-    void LoadDisparityImageD(pixel_t* d_disp, cv::Size imageSize, EstimatedCameraParameters estimated_camera_params);
-    float Compute();
+    void LoadDisparityImage(const pixel_t* m_disp, EstimatedCameraParameters estimated_camera_params);
+    void LoadDisparityImageD(pixel_t* d_disp, EstimatedCameraParameters estimated_camera_params);
+    void Compute(float *elapsed_time_ms);
     Section* FetchStixels() { return m_stixels; }
     int FetchRealCols() { return m_realcols; }
     void Finish();
@@ -125,7 +125,7 @@ private:
     float computeObjectDisparityRange(const float previous_mean);
     pixel_t computeMean(const int vB, const int vT, const int u);
     void LoadDisparityImageCore(const pixel_t* m_disp,
-        cv::Size imageSize, EstimatedCameraParameters estimated_camera_params, cudaMemcpyKind dir);
+        EstimatedCameraParameters estimated_camera_params, cudaMemcpyKind dir);
     ExportProbabilitiesParameters computeProbabilitiesParameters(ProbabilitiesParameters params,
         int max_dist, int rows);
     float groundFunction(const int v);
@@ -177,7 +177,7 @@ ExportProbabilitiesParameters Stixels::StixelsImpl::computeProbabilitiesParamete
 }
 
 inline void Stixels::StixelsImpl::LoadDisparityImageCore(const pixel_t* disp,
-    cv::Size imageSize, EstimatedCameraParameters estimated_camera_params, cudaMemcpyKind dir) {
+    EstimatedCameraParameters estimated_camera_params, cudaMemcpyKind dir) {
     m_disp_im = (pixel_t*)disp;
     m_estimated_camera_params = estimated_camera_params;
     m_estimated_camera_params.horizonPoint = m_rows - estimated_camera_params.horizonPoint - 1;
@@ -187,13 +187,13 @@ inline void Stixels::StixelsImpl::LoadDisparityImageCore(const pixel_t* disp,
 }
 
 void Stixels::StixelsImpl::LoadDisparityImage(const pixel_t* m_disp, 
-    cv::Size imageSize, EstimatedCameraParameters estimated_camera_params) {
-    LoadDisparityImageCore(m_disp, imageSize, estimated_camera_params, cudaMemcpyHostToDevice);
+    EstimatedCameraParameters estimated_camera_params) {
+    LoadDisparityImageCore(m_disp, estimated_camera_params, cudaMemcpyHostToDevice);
 }
 
 void Stixels::StixelsImpl::LoadDisparityImageD(pixel_t* d_disp, 
-    cv::Size imageSize, EstimatedCameraParameters estimated_camera_params) {
-    LoadDisparityImageCore(d_disp, imageSize, estimated_camera_params, cudaMemcpyDeviceToHost);
+    EstimatedCameraParameters estimated_camera_params) {
+    LoadDisparityImageCore(d_disp, estimated_camera_params, cudaMemcpyDeviceToHost);
 }
 
 void Stixels::StixelsImpl::UpdateImageSize(const cv::Size image_size) {
@@ -217,14 +217,13 @@ void Stixels::StixelsImpl::SetParameters(
 
     m_camera_parameters = camera_params;
     m_probabilities_params = probabilities_params;
-    //m_export_probabilities_params = computeProbabilitiesParameters(probabilities_params, m_max_dis, m_rows);
     m_max_dis = disparity_params.maxDisparity;
     m_max_disf = (float)m_max_dis;
     m_disparity_parameters = disparity_params;
     m_model_params = model_params;
 }
 
-float Stixels::StixelsImpl::Compute() {
+void Stixels::StixelsImpl::Compute(float *elapsed_time_ms) {
 	cudaEvent_t start, stop;
 	cudaEventCreate(&start);
 	cudaEventCreate(&stop);
@@ -278,13 +277,11 @@ float Stixels::StixelsImpl::Compute() {
 	CUDA_CHECK_RETURN(cudaDeviceSynchronize());
 
 	cudaEventRecord(stop, 0);
-	float elapsed_time_ms;
-	cudaEventElapsedTime(&elapsed_time_ms, start, stop);
+	cudaEventElapsedTime(elapsed_time_ms, start, stop);
 	cudaEventDestroy(start);
 	cudaEventDestroy(stop);
 	CUDA_CHECK_RETURN(cudaMemcpy(m_stixels, d_stixels, m_realcols*m_model_params.maxSections*sizeof(Section),
 			cudaMemcpyDeviceToHost));
-	return elapsed_time_ms;
 }
 
 float Stixels::StixelsImpl::fastLog(float v) {
@@ -390,7 +387,6 @@ void Stixels::StixelsImpl::free_memory() {
 }
 
 void Stixels::StixelsImpl::malloc_image_memory() {
-    std::cout << "mmmmmmmmmm" << std::endl;
     m_export_probabilities_params = computeProbabilitiesParameters(m_probabilities_params, m_max_dis, m_rows);
 
     m_disp_im_modified = m_disp_im;
@@ -527,17 +523,17 @@ void Stixels::Initialize() {
 }
 
 void Stixels::LoadDisparityImage(const pixel_t* m_disp, 
-    cv::Size imageSize, EstimatedCameraParameters estimated_camera_params) {
-    m_impl->LoadDisparityImage(m_disp, imageSize, estimated_camera_params);
+    EstimatedCameraParameters estimated_camera_params) {
+    m_impl->LoadDisparityImage(m_disp, estimated_camera_params);
 }
 
 void Stixels::LoadDisparityImageD(pixel_t* d_disp, 
-    cv::Size imageSize, EstimatedCameraParameters estimated_camera_params) {
-    m_impl->LoadDisparityImageD(d_disp, imageSize, estimated_camera_params);
+    EstimatedCameraParameters estimated_camera_params) {
+    m_impl->LoadDisparityImageD(d_disp, estimated_camera_params);
 }
 
-float Stixels::Compute() {
-    return m_impl->Compute();
+void Stixels::Compute(float* elapsed_time_ms) {
+    return m_impl->Compute(elapsed_time_ms);
 }
 
 Section* Stixels::FetchStixels() {

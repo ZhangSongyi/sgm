@@ -39,12 +39,12 @@ public:
 	Stixels();
 	~Stixels();
 	void Initialize();
-	float Compute();
+	void Compute(float* elapsed_time_ms);
 	Section* FetchStixels();
 	int FetchRealCols();
 	void Finish();
-    void LoadDisparityImage(const pixel_t* m_disp, cv::Size imageSize, EstimatedCameraParameters estimated_camera_params);
-    void LoadDisparityImageD(pixel_t* d_disp, cv::Size imageSize, EstimatedCameraParameters estimated_camera_params);
+    void LoadDisparityImage(const pixel_t* m_disp, EstimatedCameraParameters estimated_camera_params);
+    void LoadDisparityImageD(pixel_t* d_disp, EstimatedCameraParameters estimated_camera_params);
     void UpdateImageSize(cv::Size image_size);
     void SetParameters(
         ProbabilitiesParameters probabilities_params,

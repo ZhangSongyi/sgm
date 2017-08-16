@@ -37,8 +37,9 @@ public:
     void Initialize();
     void SetParameter(const uint8_t p1, const uint8_t p2);
     void SetColorTable(const uint8_t color_table[MAX_DISPARITY * 3]);
+    void UpdateImageSize(const cv::Size image_size);
     void LoadImages(cv::Mat left, cv::Mat right);
-    void LoadImagesD(uint8_t* left, uint8_t* right, cv::Size imageSize);
+    void LoadImagesD(uint8_t* left, uint8_t* right);
     void Compute(float *elapsed_time_ms);
     cv::Mat FetchDisparityResult();
     cv::Mat FetchColoredDisparityResult();
@@ -48,7 +49,7 @@ public:
     void Finish();
 
 private:
-    void LoadImagesCore(const uint8_t* d_left, const uint8_t* d_right, cv::Size imageSize, cudaMemcpyKind dir);
+    void LoadImagesCore(const uint8_t* d_left, const uint8_t* d_right, cudaMemcpyKind dir);
 
 private: /*CUDA Host Pointer*/
     uint8_t *h_disparity;
@@ -112,6 +113,22 @@ void DisparityEstimation::DisparityEstimationImpl::Initialize() {
     cols = 0;
 }
 
+void DisparityEstimation::DisparityEstimationImpl::UpdateImageSize(const cv::Size image_size) {
+    if (cols != image_size.width || rows != image_size.height) {
+        debug_log("WARNING: cols or rows are different");
+        if (!first_alloc) {
+            debug_log("Freeing memory");
+            free_memory();
+        }
+        first_alloc = false;
+        cols = image_size.width;
+        rows = image_size.height;
+        size = rows*cols;
+        size_cube_l = size*MAX_DISPARITY;
+        malloc_memory();
+    }
+}
+
 void DisparityEstimation::DisparityEstimationImpl::SetParameter(const uint8_t _p1, const uint8_t _p2)
 {
     if (_p1 < _p2) {
@@ -125,31 +142,18 @@ void DisparityEstimation::DisparityEstimationImpl::SetColorTable(const uint8_t c
     CUDA_CHECK_RETURN(cudaMemcpyAsync(d_im0, color_table, MAX_DISPARITY * 3, cudaMemcpyHostToDevice, stream1));
 }
 
-inline void DisparityEstimation::DisparityEstimationImpl::LoadImagesCore(const uint8_t* left, const uint8_t* right, cv::Size imageSize, cudaMemcpyKind dir)
+inline void DisparityEstimation::DisparityEstimationImpl::LoadImagesCore(const uint8_t* left, const uint8_t* right, cudaMemcpyKind dir)
 {
-    if (cols != imageSize.width || rows != imageSize.height) {
-        debug_log("WARNING: cols or rows are different");
-        if (!first_alloc) {
-            debug_log("Freeing memory");
-            free_memory();
-        }
-        first_alloc = false;
-        cols = imageSize.width;
-        rows = imageSize.height;
-        size = rows*cols;
-        size_cube_l = size*MAX_DISPARITY;
-        malloc_memory();
-    }
     CUDA_CHECK_RETURN(cudaMemcpyAsync(d_im0, left, sizeof(uint8_t)*size, dir, stream1));
     CUDA_CHECK_RETURN(cudaMemcpyAsync(d_im1, right, sizeof(uint8_t)*size, dir, stream1));
 }
 
 void DisparityEstimation::DisparityEstimationImpl::LoadImages(cv::Mat left, cv::Mat right) {
-    LoadImagesCore(left.ptr<uint8_t>(), right.ptr<uint8_t>(), left.size(), cudaMemcpyHostToDevice);
+    LoadImagesCore(left.ptr<uint8_t>(), right.ptr<uint8_t>(), cudaMemcpyHostToDevice);
 }
 
-void DisparityEstimation::DisparityEstimationImpl::LoadImagesD(uint8_t* d_left, uint8_t* d_right, cv::Size imageSize) {
-    LoadImagesCore(d_left, d_right, imageSize, cudaMemcpyDeviceToDevice);
+void DisparityEstimation::DisparityEstimationImpl::LoadImagesD(uint8_t* d_left, uint8_t* d_right) {
+    LoadImagesCore(d_left, d_right, cudaMemcpyDeviceToDevice);
 }
 
 void DisparityEstimation::DisparityEstimationImpl::Compute(float *elapsed_time_ms) {
@@ -307,12 +311,16 @@ void DisparityEstimation::SetColorTable(const uint8_t color_table[MAX_DISPARITY 
     m_impl->SetColorTable(color_table);
 }
 
+void DisparityEstimation::UpdateImageSize(cv::Size image_size) {
+    m_impl->UpdateImageSize(image_size);
+}
+
 void DisparityEstimation::LoadImages(cv::Mat left, cv::Mat right) {
     m_impl->LoadImages(left, right);
 }
 
-void DisparityEstimation::LoadImagesD(uint8_t* left, uint8_t* right, cv::Size imageSize) {
-    m_impl->LoadImagesD(left, right, imageSize);
+void DisparityEstimation::LoadImagesD(uint8_t* left, uint8_t* right) {
+    m_impl->LoadImagesD(left, right);
 }
 
 void DisparityEstimation::Compute(float *elapsed_time_ms) {
