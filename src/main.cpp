@@ -46,17 +46,22 @@
 #include <stdint.h>
 #include <iostream>
 #include <fstream>
+#include <fstream>
 #include "configuration.h"
 #include "configuration_parameters.h"
 #include "debug.h"
 #include "DisparityEstimation.h"
+#include "ConfigurationGroup.h"
 #include "Stixels.h"
 #include "RoadEstimation.h"
 #include "showStixels.h"
 
+#define CFG(key) atof(config[key].c_str())
+#define CFGBOOL(key) (config[key] == "true")
+
 int main(int argc, char *argv[]) {
-	if(argc < 3) {
-		std::cerr << "Usage: sgm left_video right_video" << std::endl;
+	if(argc < 2) {
+		std::cerr << "Usage: sgm config_file" << std::endl;
 		return EXIT_FAILURE;
 	}
 	if(MAX_DISPARITY != 128) {
@@ -68,8 +73,89 @@ int main(int argc, char *argv[]) {
         return EXIT_FAILURE;
     }
 
-	const char* left_video_path = argv[1];
-    const char* right_video_path = argv[2];
+    configurationGroup config;
+    std::ifstream config_file(argv[1]);
+    config_file >> config;
+    config_file.close();
+
+	const std::string left_video_path = config["left_video_path"];
+    const std::string right_video_path = config["right_video_path"];
+    const float prescale = CFG("prescale");
+
+    const cv::Mat cameraMatrixL = (cv::Mat_<double>(3, 3) <<
+        CFG("l_fx") * prescale, 0, CFG("l_cx") * prescale,
+        0, CFG("l_fy") * prescale, CFG("l_cy") * prescale,
+        0, 0, 1);
+    const cv::Mat cameraMatrixR = (cv::Mat_<double>(3, 3) <<
+        CFG("r_fx") * prescale, 0, CFG("r_cx") * prescale,
+        0, CFG("r_fy") * prescale, CFG("r_cy") * prescale,
+        0, 0, 1);
+    const CameraParameters camera_parameters = {
+        /*cameraCenterX      = */ CFG("l_cx") * prescale,
+        /*cameraCenterY      = */ CFG("l_cy") * prescale,
+        /*baseline           = */ CFG("tr_x"),
+        /*focal              = */ CFG("l_fx")
+    };
+    const cv::Mat cameraDistCoeffL = (cv::Mat_<double>(1, 5) <<
+        CFG("l_k1"), CFG("l_k2"),
+        CFG("l_p1"), CFG("l_p2"),
+        CFG("l_k3"));
+    const cv::Mat cameraDistCoeffR = (cv::Mat_<double>(1, 5) <<
+        CFG("r_k1"), CFG("r_k2"),
+        CFG("r_p1"), CFG("r_p2"),
+        CFG("r_k3"));
+
+    const cv::Mat cameraRotationMatrix = (cv::Mat_<double>(3, 3) <<
+        CFG("rt_11"), CFG("rt_12"), CFG("rt_13"),
+        CFG("rt_21"), CFG("rt_22"), CFG("rt_23"),
+        CFG("rt_31"), CFG("rt_32"), CFG("rt_33"));
+
+    const cv::Mat cameraTranslationMatrix = (cv::Mat_<double>(3, 1) <<
+        CFG("tr_x"),
+        CFG("tr_y"),
+        CFG("tr_z"));
+
+    const int p1 = CFG("p1");
+    const int p2 = CFG("p2");
+
+    const ProbabilitiesParameters probabilities_parameters = {
+        /*out                = */ CFG("out"),
+        /*outSky             = */ CFG("out_sky"),
+        /*groundGivenNExist  = */ CFG("ground_gne"),
+        /*objectGivenNExist  = */ CFG("object_gne"),
+        /*skyGivenNExist     = */ CFG("sky_gne"),
+        /*nExistDis          = */ CFG("ned"),
+        /*ground             = */ CFG("ground"),
+        /*object             = */ CFG("object"),
+        /*sky                = */ CFG("sky"),
+        /*ord                = */ CFG("ord"),
+        /*grav               = */ CFG("grav"),
+        /*blg                = */ CFG("blg")
+    };
+
+    const StixelModelParameters stixel_model_parameters = {
+        /* columnStep        = */ CFG("column_step"),
+        /* medianStep        = */ CFGBOOL("median_step"),
+        /* epsilon           = */ CFG("epsilon"),
+        /* rangeObjectsZ     = */ CFG("range_object_z"), // in meters
+        /* widthMargin       = */ CFG("width_margin"),
+        /* maxSections       = */ CFG("max_sections")
+    };
+
+    struct DisparityParameters disparity_parameters {
+        /* maxDisparity         = */ 128,
+        /* sigmaDisparityObject = */ CFG("sigma_object"),
+        /* sigmaDisparityGround = */ CFG("sigma_ground"),
+        /* sigmaSky             = */ CFG("sigma_sky") // Should be small compared to sigma_dis
+    };
+
+    EstimatedCameraParameters estimated_camera_parameters = {
+        /*sigmaCameraTilt    = */ CFG("sigma_tilt") * (PIFLOAT) / 180.0f,
+        /*sigmaCameraHeight  = */ CFG("sigma_height")
+    };
+
+    const float max_dis_display = CFG("max_dis_disparity");
+
 
     std::cout << left_video_path << std::endl;
 
@@ -78,7 +164,7 @@ int main(int argc, char *argv[]) {
     if (!left_video.isOpened() || !right_video.isOpened()) {
         std::cerr << "open video file failed" << std::endl;
     }
-    left_video.set(CV_CAP_PROP_POS_FRAMES, 1);
+    
 
     bool first_time = true;
     DisparityEstimation disparity_estimation;
@@ -105,14 +191,20 @@ int main(int argc, char *argv[]) {
     cv::Mat mix_frame;
     cv::namedWindow("Test");
 
+    //left_video.set(CV_CAP_PROP_POS_FRAMES, 1);
+    left_video.read(left_frame_input);
+    //left_video.read(left_frame_input);
+
+
     int currentFrame = 0;
     while (true)
     {
         if (!left_video.read(left_frame_input) || !right_video.read(right_frame_input))
         {
             std::cerr << "Reach the end of video file" << std::endl;
-            left_video.set(CV_CAP_PROP_POS_FRAMES, 1);
+            left_video.set(CV_CAP_PROP_POS_FRAMES, 0);
             right_video.set(CV_CAP_PROP_POS_FRAMES, 0);
+            left_video.read(left_frame_input);
             continue;
         }
         currentFrame++;
@@ -211,8 +303,8 @@ int main(int argc, char *argv[]) {
         //MIX IMGS TOGETHER
         //left_frame_color.copyTo(mix_frame(rect_roi_up));
         //cv::cvtColor(disparity_im, disparity_im_color, CV_GRAY2BGR);
-        left_frame_stx.copyTo(mix_frame(rect_roi_up));
-        disparity_im_color.copyTo(mix_frame(rect_roi_down));
+        left_frame_stx.copyTo(mix_frame(rect_roi_down));
+        disparity_im_color.copyTo(mix_frame(rect_roi_up));
         cv::imshow("Test", mix_frame);
 
         char c = cv::waitKey(1);
