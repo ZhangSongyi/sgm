@@ -23,6 +23,17 @@ struct EstimatedCameraParameters {
     float slope;
 };
 
+struct RoadEstimationParameters {
+    float rangeAngleX;      ///< Angle interval to discard horizontal planes
+    float rangeAngleY;      ///< Angle interval to discard vertical planes
+    float houghAccumThr;    ///< Threshold of the min number of points to form a line
+    float binThr;           ///< Threshold to binarize vDisparity histogram
+    float maxPitch;         ///< Angle elevation maximun of camera
+    float minPitch;         ///< Angle elevation minimum of camera
+    float maxCameraHeight;  ///< Height maximun of camera
+    float minCameraHeight;  ///< Height minimun of camera
+};
+
 struct ProbabilitiesParameters {
     float out;
     float outSky;

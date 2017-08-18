@@ -48,7 +48,6 @@
 #include <fstream>
 #include <fstream>
 #include "configuration.h"
-#include "configuration_parameters.h"
 #include "debug.h"
 #include "DisparityEstimation.h"
 #include "ConfigurationGroup.h"
@@ -118,19 +117,30 @@ int main(int argc, char *argv[]) {
     const int p1 = CFG("p1");
     const int p2 = CFG("p2");
 
+    const RoadEstimationParameters road_estimation_parameters = {
+        /* rangeAngleX       = */ CFG("range_angle_x"),
+        /* rangeAngleY       = */ CFG("range_angle_y"),
+        /* houghAccumThr     = */ CFG("hough_accum_thr"),
+        /* binThr            = */ CFG("bin_thr"),
+        /* maxPitch          = */ CFG("max_pitch") DEGREE,
+        /* minPitch          = */ CFG("min_pitch") DEGREE,
+        /* maxCameraHeight   = */ CFG("max_cam_height"),
+        /* minCameraHeight   = */ CFG("min_cam_height"),
+    };
+
     const ProbabilitiesParameters probabilities_parameters = {
-        /*out                = */ CFG("out"),
-        /*outSky             = */ CFG("out_sky"),
-        /*groundGivenNExist  = */ CFG("ground_gne"),
-        /*objectGivenNExist  = */ CFG("object_gne"),
-        /*skyGivenNExist     = */ CFG("sky_gne"),
-        /*nExistDis          = */ CFG("ned"),
-        /*ground             = */ CFG("ground"),
-        /*object             = */ CFG("object"),
-        /*sky                = */ CFG("sky"),
-        /*ord                = */ CFG("ord"),
-        /*grav               = */ CFG("grav"),
-        /*blg                = */ CFG("blg")
+        /* out               = */ CFG("out"),
+        /* outSky            = */ CFG("out_sky"),
+        /* groundGivenNExist = */ CFG("ground_gne"),
+        /* objectGivenNExist = */ CFG("object_gne"),
+        /* skyGivenNExist    = */ CFG("sky_gne"),
+        /* nExistDis         = */ CFG("ned"),
+        /* ground            = */ CFG("ground"),
+        /* object            = */ CFG("object"),
+        /* sky               = */ CFG("sky"),
+        /* ord               = */ CFG("ord"),
+        /* grav              = */ CFG("grav"),
+        /* blg               = */ CFG("blg")
     };
 
     const StixelModelParameters stixel_model_parameters = {
@@ -142,19 +152,20 @@ int main(int argc, char *argv[]) {
         /* maxSections       = */ CFG("max_sections")
     };
 
-    struct DisparityParameters disparity_parameters {
-        /* maxDisparity         = */ 128,
+    const DisparityParameters disparity_parameters {
+        /* maxDisparity         = */ MAX_DISPARITY,
         /* sigmaDisparityObject = */ CFG("sigma_object"),
         /* sigmaDisparityGround = */ CFG("sigma_ground"),
         /* sigmaSky             = */ CFG("sigma_sky") // Should be small compared to sigma_dis
     };
 
     EstimatedCameraParameters estimated_camera_parameters = {
-        /*sigmaCameraTilt    = */ CFG("sigma_tilt") * (PIFLOAT) / 180.0f,
-        /*sigmaCameraHeight  = */ CFG("sigma_height")
+        /* sigmaCameraTilt   = */ CFG("sigma_tilt") DEGREE,
+        /* sigmaCameraHeight = */ CFG("sigma_height")
     };
 
     const float max_dis_display = CFG("max_dis_disparity");
+    const float disparity_sky = CFG("sky_disparity");
 
 
     std::cout << left_video_path << std::endl;
@@ -174,7 +185,7 @@ int main(int argc, char *argv[]) {
     road_estimation.Initialize();
     stixles.Initialize();
     disparity_estimation.SetParameter(p1, p2);
-    road_estimation.SetCameraParameters(camera_parameters);
+    road_estimation.SetCameraParameters(camera_parameters, road_estimation_parameters);
     stixles.SetParameters(probabilities_parameters, camera_parameters, disparity_parameters, stixel_model_parameters);
 
     cv::Mat left_frame_input, right_frame_input;
@@ -298,13 +309,13 @@ int main(int argc, char *argv[]) {
         int realCols = stixles.FetchRealCols();
 
         cv::Mat left_frame_stx;
-        ShowStixels(left_frame_color, left_frame_stx, stx, stixel_model_parameters, realCols, estimated_camera_parameters.horizonPoint, max_dis_display);
+        ShowStixels(left_frame_color, left_frame_stx, stx, stixel_model_parameters, realCols, estimated_camera_parameters.horizonPoint, max_dis_display, disparity_sky);
 
         //MIX IMGS TOGETHER
         //left_frame_color.copyTo(mix_frame(rect_roi_up));
         //cv::cvtColor(disparity_im, disparity_im_color, CV_GRAY2BGR);
-        left_frame_stx.copyTo(mix_frame(rect_roi_down));
-        disparity_im_color.copyTo(mix_frame(rect_roi_up));
+        left_frame_stx.copyTo(mix_frame(rect_roi_up));
+        disparity_im_color.copyTo(mix_frame(rect_roi_down));
         cv::imshow("Test", mix_frame);
 
         char c = cv::waitKey(1);

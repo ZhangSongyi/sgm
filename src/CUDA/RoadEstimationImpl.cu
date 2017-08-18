@@ -33,10 +33,10 @@ public:
     RoadEstimationImpl();
     ~RoadEstimationImpl();
     void Initialize();
-    void SetCameraParameters(const CameraParameters param);
+    void SetCameraParameters(const CameraParameters cam_param, const RoadEstimationParameters road_param);
     void UpdateImageSize(const cv::Size image_size);
     void LoadDisparityImage(const pixel_t* m_disp);
-    void LoadDisparityImageD(pixel_t* d_disp);
+    void LoadDisparityImageD(const pixel_t* d_disp);
     bool Compute();
     void Finish();
     EstimatedCameraParameters FetchEstimatedCameraParameters() { return m_estimatedCameraParameters; }
@@ -48,15 +48,8 @@ private:
 private: /*CUDA Host Pointer*/
     CameraParameters m_cameraParameters;
     EstimatedCameraParameters m_estimatedCameraParameters;
+    RoadEstimationParameters m_roadEstimationParameters;
 
-    int m_rangeAngleX;          ///< Angle interval to discard horizontal planes
-    int m_rangeAngleY;          ///< Angle interval to discard vertical planes
-    int m_HoughAccumThr;        ///< Threshold of the min number of points to form a line
-    float m_binThr;             ///< Threshold to binarize vDisparity histogram
-    float m_maxPitch;			///< Angle elevation maximun of camera
-    float m_minPitch;			///< Angle elevation minimum of camera
-    float m_maxCameraHeight;    ///< Height maximun of camera
-    float m_minCameraHeight;    ///< Height minimun of camera
     int m_rows;
     int m_cols;
 
@@ -83,23 +76,12 @@ RoadEstimation::RoadEstimationImpl::RoadEstimationImpl() {}
 RoadEstimation::RoadEstimationImpl::~RoadEstimationImpl() {}
 
 void RoadEstimation::RoadEstimationImpl::Initialize() {
-    // Default configuration
-    m_rangeAngleX = 5;
-    m_rangeAngleY = 5;
-    m_HoughAccumThr = 25;
-    m_binThr = 0.5f;
-    m_maxPitch = 50;
-    m_minPitch = -50;
-    m_maxCameraHeight = 1.90f;
-    m_minCameraHeight = 1.30f;
-    m_maxPitch = m_maxPitch*(float)CV_PI / 180.0f;
-    m_minPitch = m_minPitch*(float)CV_PI / 180.0f;
-
     first_alloc = true;
 }
 
-void RoadEstimation::RoadEstimationImpl::SetCameraParameters(const CameraParameters param) {
-    m_cameraParameters = param;
+void RoadEstimation::RoadEstimationImpl::SetCameraParameters(const CameraParameters cam_param, const RoadEstimationParameters road_param) {
+    m_cameraParameters = cam_param;
+    m_roadEstimationParameters = road_param;
 }
 
 void RoadEstimation::RoadEstimationImpl::Finish() {
@@ -131,7 +113,7 @@ void RoadEstimation::RoadEstimationImpl::LoadDisparityImage(const pixel_t* m_dis
     LoadDisparityImageCore(m_disp, cudaMemcpyHostToDevice);
 }
 
-void RoadEstimation::RoadEstimationImpl::LoadDisparityImageD(pixel_t* d_disp) {
+void RoadEstimation::RoadEstimationImpl::LoadDisparityImageD(const pixel_t* d_disp) {
     LoadDisparityImageCore(d_disp, cudaMemcpyDeviceToDevice);
 }
 
@@ -141,8 +123,7 @@ bool RoadEstimation::RoadEstimationImpl::Compute() {
 	// Compute the vDisparity histogram
 	ComputeHistogram<<<(m_rows*m_cols+256-1)/256, 256>>>(d_disparity_input, d_vDisp, m_rows, m_cols, MAX_DISPARITY);
 	ComputeMaximum<<<(m_rows*MAX_DISPARITY +256-1)/256, 256>>>(d_vDisp, d_maximum, m_rows, MAX_DISPARITY);
-	ComputeBinaryImage<<<(m_rows*MAX_DISPARITY +256-1)/256, 256>>>(d_vDisp, d_vDispBinary, d_maximum, m_binThr,
-			m_rows, MAX_DISPARITY);
+	ComputeBinaryImage<<<(m_rows*MAX_DISPARITY +256-1)/256, 256>>>(d_vDisp, d_vDispBinary, d_maximum, m_roadEstimationParameters.binThr, m_rows, MAX_DISPARITY);
 
     // Compute the Hough transform
 	float rho, theta;
@@ -162,7 +143,7 @@ bool RoadEstimation::RoadEstimationImpl::ComputeHough(uint8_t *d_vDispBinary, fl
 	std::vector<cv::Vec2f> lines;
 	cudaMemcpy(m_vDisp, d_vDispBinary, MAX_DISPARITY*m_rows*sizeof(uint8_t), cudaMemcpyDeviceToHost);
 	cv::Mat vDisp(m_rows, MAX_DISPARITY, CV_8UC1, m_vDisp);
-	cv::HoughLines(vDisp, lines, 1.0, CV_PI/180, m_HoughAccumThr);
+	cv::HoughLines(vDisp, lines, 1.0, 1.0 DEGREE, m_roadEstimationParameters.houghAccumThr);
 
 	// Get the best line from hough
 	for (size_t i=0; i<lines.size(); i++) {
@@ -173,10 +154,11 @@ bool RoadEstimation::RoadEstimationImpl::ComputeHough(uint8_t *d_vDispBinary, fl
 		// Compute camera position
 		ComputeCameraProperties(vDisp, rho, theta, estimatedCameraParams);
 
-		printf("%f (%f %f) %f (%f %f)\n", estimatedCameraParams.pitch, m_minPitch, m_maxPitch, estimatedCameraParams.cameraHeight, m_minCameraHeight, m_maxCameraHeight);
-		//if (pitch>=m_minPitch && pitch<=m_maxPitch && cameraHeight>=m_minCameraHeight && cameraHeight<=m_maxCameraHeight) {
-		if (estimatedCameraParams.pitch>=m_minPitch && estimatedCameraParams.pitch<=m_maxPitch && 
-            estimatedCameraParams.cameraHeight >= m_minCameraHeight && estimatedCameraParams.cameraHeight <= m_maxCameraHeight) {
+		//printf("%f (%f %f) %f (%f %f)\n", 
+  //          estimatedCameraParams.pitch, m_roadEstimationParameters.minPitch, m_roadEstimationParameters.maxPitch, 
+  //          estimatedCameraParams.cameraHeight, m_roadEstimationParameters.minCameraHeight, m_roadEstimationParameters.maxCameraHeight);
+		if (estimatedCameraParams.pitch >= m_roadEstimationParameters.minPitch && estimatedCameraParams.pitch <= m_roadEstimationParameters.maxPitch &&
+            estimatedCameraParams.cameraHeight >= m_roadEstimationParameters.minCameraHeight && estimatedCameraParams.cameraHeight <= m_roadEstimationParameters.maxCameraHeight) {
 			return true;
 		}
 	}
@@ -228,8 +210,8 @@ void RoadEstimation::Initialize() {
     m_impl->Initialize();
 }
 
-void RoadEstimation::SetCameraParameters(const CameraParameters param) {
-    m_impl->SetCameraParameters(param);
+void RoadEstimation::SetCameraParameters(const CameraParameters cam_param, const RoadEstimationParameters road_param) {
+    m_impl->SetCameraParameters(cam_param, road_param);
 }
 
 void RoadEstimation::UpdateImageSize(const cv::Size image_size) {
@@ -240,7 +222,7 @@ void RoadEstimation::LoadDisparityImage(const pixel_t* m_disp) {
     m_impl->LoadDisparityImage(m_disp);
 }
 
-void RoadEstimation::LoadDisparityImageD(pixel_t* d_disp) {
+void RoadEstimation::LoadDisparityImageD(const pixel_t* d_disp) {
     m_impl->LoadDisparityImageD(d_disp);
 }
 

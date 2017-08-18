@@ -43,14 +43,14 @@ public:
 	Section* FetchStixels();
 	int FetchRealCols();
 	void Finish();
-    void LoadDisparityImage(const pixel_t* m_disp, EstimatedCameraParameters estimated_camera_params);
-    void LoadDisparityImageD(pixel_t* d_disp, EstimatedCameraParameters estimated_camera_params);
+    void LoadDisparityImage(const pixel_t* m_disp, const EstimatedCameraParameters estimated_camera_params);
+    void LoadDisparityImageD(const pixel_t* d_disp, const EstimatedCameraParameters estimated_camera_params);
     void UpdateImageSize(cv::Size image_size);
     void SetParameters(
-        ProbabilitiesParameters probabilities_params,
-        CameraParameters camera_params,
-        DisparityParameters disparity_params,
-        StixelModelParameters model_params);
+        const ProbabilitiesParameters probabilities_params,
+        const CameraParameters camera_params,
+        const DisparityParameters disparity_params,
+        const StixelModelParameters model_params);
 private:
     class StixelsImpl;
     std::auto_ptr<StixelsImpl> m_impl;

@@ -39,7 +39,7 @@ public:
     void SetColorTable(const uint8_t color_table[MAX_DISPARITY * 3]);
     void UpdateImageSize(const cv::Size image_size);
     void LoadImages(cv::Mat left, cv::Mat right);
-    void LoadImagesD(uint8_t* left, uint8_t* right);
+    void LoadImagesD(const uint8_t* left, const uint8_t* right);
     void Compute(float *elapsed_time_ms);
     cv::Mat FetchDisparityResult();
     cv::Mat FetchColoredDisparityResult();
@@ -152,7 +152,7 @@ void DisparityEstimation::DisparityEstimationImpl::LoadImages(cv::Mat left, cv::
     LoadImagesCore(left.ptr<uint8_t>(), right.ptr<uint8_t>(), cudaMemcpyHostToDevice);
 }
 
-void DisparityEstimation::DisparityEstimationImpl::LoadImagesD(uint8_t* d_left, uint8_t* d_right) {
+void DisparityEstimation::DisparityEstimationImpl::LoadImagesD(const uint8_t* d_left, const uint8_t* d_right) {
     LoadImagesCore(d_left, d_right, cudaMemcpyDeviceToDevice);
 }
 
@@ -319,7 +319,7 @@ void DisparityEstimation::LoadImages(cv::Mat left, cv::Mat right) {
     m_impl->LoadImages(left, right);
 }
 
-void DisparityEstimation::LoadImagesD(uint8_t* left, uint8_t* right) {
+void DisparityEstimation::LoadImagesD(const uint8_t* left, const uint8_t* right) {
     m_impl->LoadImagesD(left, right);
 }
 

@@ -4,6 +4,6 @@
 #include <opencv2/core.hpp>
 #include "struct.h"
 
-void ShowStixels(cv::Mat left_frame, cv::Mat& left_frame_stx, Section* stx, StixelModelParameters model_parameters, int real_cols, int horizon_point, int max_dis_display);
+void ShowStixels(cv::Mat left_frame, cv::Mat& left_frame_stx, Section* stx, StixelModelParameters model_parameters, int real_cols, int horizon_point, int max_dis_display, float disparity_sky);
 
 #endif

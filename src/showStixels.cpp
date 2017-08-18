@@ -55,7 +55,7 @@ void HSV_to_RGB(const float h, const float s, const float v, int *cr, int *cg, i
 
 }
 
-void ShowStixels(cv::Mat left_frame, cv::Mat& left_frame_stx, Section* stx, StixelModelParameters model_parameters, int real_cols, int horizon_point, int max_dis_display){
+void ShowStixels(cv::Mat left_frame, cv::Mat& left_frame_stx, Section* stx, StixelModelParameters model_parameters, int real_cols, int horizon_point, int max_dis_display, float disparity_sky){
     //left_frame_stx.create(left_frame.size(), CV_8UC3);
     left_frame.copyTo(left_frame_stx);
     for (size_t i = 0; i < real_cols; i++) {
@@ -73,7 +73,7 @@ void ShowStixels(cv::Mat left_frame, cv::Mat& left_frame_stx, Section* stx, Stix
             sec.vT = left_frame_stx.rows - 1 - sec.vT;
 
             // If disparity is 0 it is sky
-            if (sec.type == OBJECT && sec.disparity < 1.0f) {
+            if (sec.type == OBJECT && sec.disparity < disparity_sky) {
                 sec.type = SKY;
             }
 
