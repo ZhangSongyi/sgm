@@ -80,6 +80,8 @@ int main(int argc, char *argv[]) {
 	const std::string left_video_path = config["left_video_path"];
     const std::string right_video_path = config["right_video_path"];
     const float prescale = CFG("prescale");
+    const bool need_rect = CFGBOOL("need_rect");
+    const int video_alignment = CFG("video_alignment");
 
     const cv::Mat cameraMatrixL = (cv::Mat_<double>(3, 3) <<
         CFG("l_fx") * prescale, 0, CFG("l_cx") * prescale,
@@ -202,9 +204,14 @@ int main(int argc, char *argv[]) {
     cv::Mat mix_frame;
     cv::namedWindow("Test");
 
-    //left_video.set(CV_CAP_PROP_POS_FRAMES, 1);
-    left_video.read(left_frame_input);
-    //left_video.read(left_frame_input);
+    if (video_alignment > 0) {
+        for (int i = 0; i < video_alignment; i++)
+            right_video.grab();
+    }
+    else if (video_alignment < 0) {
+        for (int i = 0; i < -video_alignment; i++)
+            left_video.grab();
+    }
 
 
     int currentFrame = 0;
@@ -213,10 +220,7 @@ int main(int argc, char *argv[]) {
         if (!left_video.read(left_frame_input) || !right_video.read(right_frame_input))
         {
             std::cerr << "Reach the end of video file" << std::endl;
-            left_video.set(CV_CAP_PROP_POS_FRAMES, 0);
-            right_video.set(CV_CAP_PROP_POS_FRAMES, 0);
-            left_video.read(left_frame_input);
-            continue;
+            break;
         }
         currentFrame++;
         if (left_frame_input.size() != right_frame_input.size()) {
@@ -230,10 +234,12 @@ int main(int argc, char *argv[]) {
         if (left_frame_input.size() != frame_size)
         {
             frame_size = left_frame_input.size();
-            stereoRectify(cameraMatrixL, cameraDistCoeffL, cameraMatrixR, cameraDistCoeffR, frame_size, cameraRotationMatrix, cameraTranslationMatrix,
-                Rl, Rr, Pl, Pr, Q, cv::CALIB_ZERO_DISPARITY, 0);
-            initUndistortRectifyMap(cameraMatrixL, cameraDistCoeffL, Rl, Pl, frame_size, CV_32FC1, mapLx, mapLy);
-            initUndistortRectifyMap(cameraMatrixR, cameraDistCoeffR, Rr, Pr, frame_size, CV_32FC1, mapRx, mapRy);
+            if (need_rect) {
+                stereoRectify(cameraMatrixL, cameraDistCoeffL, cameraMatrixR, cameraDistCoeffR, frame_size, cameraRotationMatrix, cameraTranslationMatrix,
+                    Rl, Rr, Pl, Pr, Q, cv::CALIB_ZERO_DISPARITY, 0);
+                initUndistortRectifyMap(cameraMatrixL, cameraDistCoeffL, Rl, Pl, frame_size, CV_32FC1, mapLx, mapLy);
+                initUndistortRectifyMap(cameraMatrixR, cameraDistCoeffR, Rr, Pr, frame_size, CV_32FC1, mapRx, mapRy);
+            }
             std::cout << "FrameSize:" << frame_size.height << "*" << frame_size.width << std::endl;
             cv::Size newSize = cv::Size(frame_size.width / 4 * 4, frame_size.height / 4 * 4);
             if (newSize != rect_size)
@@ -249,8 +255,14 @@ int main(int argc, char *argv[]) {
             }
         }
 
-        remap(left_frame_input, left_frame_rect, mapLx, mapLy, cv::INTER_LINEAR);
-        remap(right_frame_input, right_frame_rect, mapRx, mapRy, cv::INTER_LINEAR);
+        if (need_rect) {
+            remap(left_frame_input, left_frame_rect, mapLx, mapLy, cv::INTER_LINEAR);
+            remap(right_frame_input, right_frame_rect, mapRx, mapRy, cv::INTER_LINEAR);
+        }
+        else {
+            left_frame_rect = left_frame_input;
+            right_frame_rect = right_frame_input;
+        }
 
         left_frame_rect = left_frame_rect(rect_roi_up);
         right_frame_rect = right_frame_rect(rect_roi_up);
