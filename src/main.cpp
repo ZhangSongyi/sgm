@@ -56,9 +56,6 @@
 #include "RoadEstimation.h"
 #include "showStixels.h"
 
-#define CFGDOUBLE(key) atof(config[key].c_str())
-#define CFGBOOL(key) (config[key] == "true")
-
 int main(int argc, char *argv[]) {
     if(argc < 2) {
         std::cerr << "Usage: sgm config_file" << std::endl;
@@ -216,9 +213,6 @@ int main(int argc, char *argv[]) {
             left_video.grab();
     }
 
-    cv::VideoWriter demoWriter;
-    bool demoWriterInit = false;
-
     try
     {
         int currentFrame = 0;
@@ -254,19 +248,8 @@ int main(int argc, char *argv[]) {
                     rect_size = newSize;
                     rect_roi_up = cv::Rect(0, 0, rect_size.width, rect_size.height);
                     rect_roi_down = cv::Rect(0, rect_size.height, rect_size.width, rect_size.height);
-                    disp_roi_up = cv::Rect(0, 0, rect_size.width, (int)(rect_size.height * 0.8));
-                    disp_roi_down = cv::Rect(0, (int)(rect_size.height * 0.8), rect_size.width, (int)(rect_size.height * 0.8));
                     std::cout << "CutSize:" << rect_size.height << "*" << rect_size.width << std::endl;
-                    if (!demoWriterInit) {
-                        demoWriterInit = true;
-                        demoWriter.open("D:\\IAIR\\Repos\\sgm\\demo.avi", CV_FOURCC('D', 'I', 'V', 'X'), 25.0, cv::Size(rect_size.width, (int)(rect_size.height * 0.8) * 2));
-                        if (!demoWriter.isOpened()) {
-                            std::cerr << "Could not open the output video file for write\n";
-                            return -1;
-                        }
-                    }
-                    //mix_frame = cv::Mat::zeros(cv::Size(rect_size.width, rect_size.height * 2), CV_8UC3);
-                    mix_frame = cv::Mat::zeros(cv::Size(rect_size.width, (int)(rect_size.height * 0.8) * 2), CV_8UC3);
+                    mix_frame = cv::Mat::zeros(cv::Size(rect_size.width, rect_size.height * 2), CV_8UC3);
                     road_estimation.UpdateImageSize(rect_size);
                     stixles.UpdateImageSize(rect_size);
                     disparity_estimation.UpdateImageSize(rect_size);
@@ -344,12 +327,9 @@ int main(int argc, char *argv[]) {
             //MIX IMGS TOGETHER
             //left_frame_color.copyTo(mix_frame(rect_roi_up));
             //cv::cvtColor(disparity_im, disparity_im_color, CV_GRAY2BGR);
-            //left_frame_stx.copyTo(mix_frame(rect_roi_up));
-            //disparity_im_color.copyTo(mix_frame(rect_roi_down));
-            (left_frame_stx(disp_roi_up)).copyTo(mix_frame(disp_roi_up));
-            (disparity_im_color(disp_roi_up)).copyTo(mix_frame(disp_roi_down));
-            demoWriter << mix_frame;
-            //cv::imshow("Test", mix_frame);
+            left_frame_stx.copyTo(mix_frame(rect_roi_up));
+            disparity_im_color.copyTo(mix_frame(rect_roi_down));
+            cv::imshow("Test", mix_frame);
 
             char c = cv::waitKey(1);
             if (c == 27) break;
@@ -366,8 +346,6 @@ int main(int argc, char *argv[]) {
             
     }
 
-    
-    demoWriter.release();
     stixles.Finish();
     road_estimation.Finish();
     disparity_estimation.Finish();
