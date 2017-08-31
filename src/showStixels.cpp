@@ -99,8 +99,9 @@ void ShowStixels(cv::Mat left_frame, cv::Mat& left_frame_stx, Section* stx, Stix
                 Section next = stx[j + 1];
                 if (sec.type == SKY && next.type == SKY) continue;
             }
+            if (sec.type == GROUND) break;
             // Don't show ground
-            if (sec.type != GROUND) {
+            else {
                 const int x = i*model_parameters.columnStep + model_parameters.widthMargin;
                 const int y = sec.vT;
                 const int width = model_parameters.columnStep;
@@ -128,8 +129,10 @@ void ShowStixels(cv::Mat left_frame, cv::Mat& left_frame_stx, Section* stx, Stix
                 }
 
                 cv::Mat color;
-                const int top = (roi.rows < 2) ? 0 : 1;
-                const int bottom = (roi.rows < 2) ? 0 : 1;
+                //const int top = (roi.rows < 2) ? 0 : 1;
+                //const int bottom = (roi.rows < 2) ? 0 : 1;
+                const int top = 0;
+                const int bottom = 0;
                 const int left = 1;
                 const int right = 1;
 
@@ -140,21 +143,21 @@ void ShowStixels(cv::Mat left_frame, cv::Mat& left_frame_stx, Section* stx, Stix
                 color_padded.create(roi.rows, roi.cols, color.type());
 
                 copyMakeBorder(color, color_padded, top, bottom, left, right, cv::BORDER_CONSTANT, cv::Scalar(255, 255, 255));
-                const double alpha = 0.6;
+                const double alpha = 0.3;
                 cv::addWeighted(color_padded, alpha, roi, 1.0 - alpha, 0.0, roi);
 
             }
         }
     }
-    if (horizon_point != -1) {
-        // Draw Horizon Line
-        int thickness = 2;
-        int lineType = 8;
-        line(left_frame_stx,
-            cv::Point(0, horizon_point),
-            cv::Point(left_frame_stx.cols - 1, horizon_point),
-            cv::Scalar(0, 0, 0),
-            thickness,
-            lineType);
-    }
+    //if (horizon_point != -1) {
+    //    // Draw Horizon Line
+    //    int thickness = 2;
+    //    int lineType = 8;
+    //    line(left_frame_stx,
+    //        cv::Point(0, horizon_point),
+    //        cv::Point(left_frame_stx.cols - 1, horizon_point),
+    //        cv::Scalar(0, 0, 0),
+    //        thickness,
+    //        lineType);
+    //}
 }

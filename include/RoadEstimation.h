@@ -29,15 +29,15 @@
 class RoadEstimation
 {
 public:
-	RoadEstimation();
-	~RoadEstimation();
-	void Initialize();
+    RoadEstimation();
+    ~RoadEstimation();
+    void Initialize();
     void SetCameraParameters(const CameraParameters cam_param, const RoadEstimationParameters road_param);
     void UpdateImageSize(const cv::Size image_size);
     void LoadDisparityImage(const pixel_t* m_disp);
     void LoadDisparityImageD(const pixel_t* d_disp);
-	bool Compute();
-	void Finish();
+    bool Compute();
+    void Finish();
     EstimatedCameraParameters FetchEstimatedCameraParameters();
 private:
     class RoadEstimationImpl;

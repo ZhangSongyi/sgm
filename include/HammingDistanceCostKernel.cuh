@@ -29,6 +29,6 @@
 #include "device_launch_parameters.h"
 
 __global__ void HammingDistanceCostKernel (  const cost_t *d_transform0, const cost_t *d_transform1,
-		uint8_t *d_cost, const int rows, const int cols );
+        uint8_t *d_cost, const int rows, const int cols );
 
 #endif /* HAMMING_DISTANCE_COST_KERNEL_CUH_ */

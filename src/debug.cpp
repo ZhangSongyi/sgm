@@ -22,6 +22,6 @@
 
 void debug_log(const char *str) {
 #if LOG
-	std::cout << str << std::endl;
+    std::cout << str << std::endl;
 #endif
 }

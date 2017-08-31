@@ -224,158 +224,158 @@ void Stixels::StixelsImpl::SetParameters(
 }
 
 void Stixels::StixelsImpl::Compute(float *elapsed_time_ms) {
-	cudaEvent_t start, stop;
-	cudaEventCreate(&start);
-	cudaEventCreate(&stop);
-	cudaEventRecord(start, 0);
+    cudaEvent_t start, stop;
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
+    cudaEventRecord(start, 0);
 
-	// Precomputation of data term
-	preComputeGround();
+    // Precomputation of data term
+    preComputeGround();
 
-	CUDA_CHECK_RETURN(cudaMemcpy(d_ground_function, m_ground_function, sizeof(float)*m_rows,
-			cudaMemcpyHostToDevice));
-	CUDA_CHECK_RETURN(cudaMemcpy(d_normalization_ground, m_normalization_ground, sizeof(float)*m_rows,
-			cudaMemcpyHostToDevice));
-	CUDA_CHECK_RETURN(cudaMemcpy(d_inv_sigma2_ground, m_inv_sigma2_ground, sizeof(float)*m_rows,
-			cudaMemcpyHostToDevice));
+    CUDA_CHECK_RETURN(cudaMemcpy(d_ground_function, m_ground_function, sizeof(float)*m_rows,
+            cudaMemcpyHostToDevice));
+    CUDA_CHECK_RETURN(cudaMemcpy(d_normalization_ground, m_normalization_ground, sizeof(float)*m_rows,
+            cudaMemcpyHostToDevice));
+    CUDA_CHECK_RETURN(cudaMemcpy(d_inv_sigma2_ground, m_inv_sigma2_ground, sizeof(float)*m_rows,
+            cudaMemcpyHostToDevice));
 
-	JoinColumns<<<divUp(m_rows*m_realcols, 256), 256>>>(d_disparity_big, d_disparity, m_model_params.columnStep,
+    JoinColumns<<<divUp(m_rows*m_realcols, 256), 256>>>(d_disparity_big, d_disparity, m_model_params.columnStep,
         m_model_params.medianStep, m_model_params.widthMargin, m_rows, m_cols, m_realcols);
 
-	cudaError_t err = cudaGetLastError();
-	if (err != cudaSuccess) {
-	    printf("Error: %s %d\n", cudaGetErrorString(err), err);
-	}
+    cudaError_t err = cudaGetLastError();
+    if (err != cudaSuccess) {
+        printf("Error: %s %d\n", cudaGetErrorString(err), err);
+    }
 
-	m_params.estimatedCameraParameters.horizonPoint = m_estimated_camera_params.horizonPoint;
+    m_params.estimatedCameraParameters.horizonPoint = m_estimated_camera_params.horizonPoint;
 
-	ComputeObjectLUT<<<m_realcols, 512>>>(d_disparity, d_obj_cost_lut, d_object_lut, m_params,
-			(int) powf(2, ceilf(log2f(m_rows))));
+    ComputeObjectLUT<<<m_realcols, 512>>>(d_disparity, d_obj_cost_lut, d_object_lut, m_params,
+            (int) powf(2, ceilf(log2f(m_rows))));
 
-	err = cudaGetLastError();
-	if (err != cudaSuccess) {
-	    printf("Error: %s %d\n", cudaGetErrorString(err), err);
-	}
+    err = cudaGetLastError();
+    if (err != cudaSuccess) {
+        printf("Error: %s %d\n", cudaGetErrorString(err), err);
+    }
 
-	int shared_mem_size = sizeof(float)*(m_params.rows_power2*6+m_params.max_dis)
-			+sizeof(int16_t)*(m_params.rows_power2*3)+
-			+sizeof(pixel_t)*(m_params.rows_power2);
+    int shared_mem_size = sizeof(float)*(m_params.rows_power2*6+m_params.max_dis)
+            +sizeof(int16_t)*(m_params.rows_power2*3)+
+            +sizeof(pixel_t)*(m_params.rows_power2);
 #if ROBUST_MEAN_ESTIMATION
-	shared_mem_size += sizeof(pixel_t)*(m_params.rows_power2*2);
+    shared_mem_size += sizeof(pixel_t)*(m_params.rows_power2*2);
 #endif
 
-	StixelsKernel<<<m_realcols, m_rows,
-			shared_mem_size>>>(d_disparity, m_params, d_ground_function, d_normalization_ground, d_inv_sigma2_ground,
-					d_object_disparity_range, d_object_lut, d_stixels);
+    StixelsKernel<<<m_realcols, m_rows,
+            shared_mem_size>>>(d_disparity, m_params, d_ground_function, d_normalization_ground, d_inv_sigma2_ground,
+                    d_object_disparity_range, d_object_lut, d_stixels);
 
-	err = cudaGetLastError();
-	if (err != cudaSuccess) {
-	    printf("Error: %s %d\n", cudaGetErrorString(err), err);
-	}
+    err = cudaGetLastError();
+    if (err != cudaSuccess) {
+        printf("Error: %s %d\n", cudaGetErrorString(err), err);
+    }
 
-	// Synchronize
-	CUDA_CHECK_RETURN(cudaDeviceSynchronize());
+    // Synchronize
+    CUDA_CHECK_RETURN(cudaDeviceSynchronize());
 
-	cudaEventRecord(stop, 0);
-	cudaEventElapsedTime(elapsed_time_ms, start, stop);
-	cudaEventDestroy(start);
-	cudaEventDestroy(stop);
-	CUDA_CHECK_RETURN(cudaMemcpy(m_stixels, d_stixels, m_realcols*m_model_params.maxSections*sizeof(Section),
-			cudaMemcpyDeviceToHost));
+    cudaEventRecord(stop, 0);
+    cudaEventElapsedTime(elapsed_time_ms, start, stop);
+    cudaEventDestroy(start);
+    cudaEventDestroy(stop);
+    CUDA_CHECK_RETURN(cudaMemcpy(m_stixels, d_stixels, m_realcols*m_model_params.maxSections*sizeof(Section),
+            cudaMemcpyDeviceToHost));
 }
 
 float Stixels::StixelsImpl::fastLog(float v) {
-	return m_log_lut[(int)((v)*LOG_LUT_SIZE+0.5f)];
+    return m_log_lut[(int)((v)*LOG_LUT_SIZE+0.5f)];
 }
 
 pixel_t Stixels::StixelsImpl::computeMean(const int vB, const int vT, const int u) {
-	const pixel_t valid_dif = m_valid[u*(m_rows+1)+vT+1]-m_valid[u*(m_rows+1)+vB];
-	pixel_t mean = (valid_dif == 0) ? 0 : (m_sum[u*(m_rows+1)+vT+1]-m_sum[u*(m_rows+1)+vB])/valid_dif;
+    const pixel_t valid_dif = m_valid[u*(m_rows+1)+vT+1]-m_valid[u*(m_rows+1)+vB];
+    pixel_t mean = (valid_dif == 0) ? 0 : (m_sum[u*(m_rows+1)+vT+1]-m_sum[u*(m_rows+1)+vB])/valid_dif;
 
 #if ROBUST_MEAN_ESTIMATION
-		pixel_t total_weight = 0;
-		pixel_t total_dv = 0;
-		for(int v = vB; v <= vT; v++) {
-			const pixel_t dv = m_column[u*m_rows+v];
-			const int val = dv != INVALID_DISPARITY;
-			const pixel_t weight = (pixel_t)val/(1+fabsf(dv-mean));
-			total_weight += weight;
-			total_dv += weight*dv;
-		}
-		mean = (total_weight == 0.0f) ? 0.0f : total_dv/total_weight;
+        pixel_t total_weight = 0;
+        pixel_t total_dv = 0;
+        for(int v = vB; v <= vT; v++) {
+            const pixel_t dv = m_column[u*m_rows+v];
+            const int val = dv != INVALID_DISPARITY;
+            const pixel_t weight = (pixel_t)val/(1+fabsf(dv-mean));
+            total_weight += weight;
+            total_dv += weight*dv;
+        }
+        mean = (total_weight == 0.0f) ? 0.0f : total_dv/total_weight;
 #endif
 
-	return mean;
+    return mean;
 }
 
 void Stixels::StixelsImpl::preComputeGround() {
-	const float fb = (m_camera_parameters.focal *m_camera_parameters.baseline)/ m_estimated_camera_params.cameraHeight;
-	const float pout = m_probabilities_params.out;
+    const float fb = (m_camera_parameters.focal *m_camera_parameters.baseline)/ m_estimated_camera_params.cameraHeight;
+    const float pout = m_probabilities_params.out;
 
-	for(int v = 0; v < m_rows; v++) {
-		const float fn = groundFunction(v);
-		m_ground_function[v] = fn;
+    for(int v = 0; v < m_rows; v++) {
+        const float fn = groundFunction(v);
+        m_ground_function[v] = fn;
 
-		const float x = m_estimated_camera_params.pitch+(float)(m_estimated_camera_params.horizonPoint-v)/ m_camera_parameters.focal;
-		const float sigma2_road = fb*fb*(m_estimated_camera_params.cameraHeight*m_estimated_camera_params.sigmaCameraHeight
-				*x*x/(m_estimated_camera_params.cameraHeight*m_estimated_camera_params.cameraHeight)+ m_estimated_camera_params.sigmaCameraTilt*m_estimated_camera_params.sigmaCameraTilt);
+        const float x = m_estimated_camera_params.pitch+(float)(m_estimated_camera_params.horizonPoint-v)/ m_camera_parameters.focal;
+        const float sigma2_road = fb*fb*(m_estimated_camera_params.cameraHeight*m_estimated_camera_params.sigmaCameraHeight
+                *x*x/(m_estimated_camera_params.cameraHeight*m_estimated_camera_params.cameraHeight)+ m_estimated_camera_params.sigmaCameraTilt*m_estimated_camera_params.sigmaCameraTilt);
         const float sigma = sqrtf(m_disparity_parameters.sigmaDisparityGround *m_disparity_parameters.sigmaDisparityGround +sigma2_road);
 
-		const float a_range = 0.5f*(erf((m_max_disf-fn)/(sigma*sqrtf(2.0f)))-erf((-fn)/(sigma*sqrtf(2.0f))));
+        const float a_range = 0.5f*(erf((m_max_disf-fn)/(sigma*sqrtf(2.0f)))-erf((-fn)/(sigma*sqrtf(2.0f))));
 
-		m_normalization_ground[v] = fastLog(a_range) - fastLog((1.0f - pout)/(sigma*sqrtf(2.0f*PIFLOAT)));
-		m_inv_sigma2_ground[v] = 1.0f/(2.0f*sigma*sigma);
-	}
+        m_normalization_ground[v] = fastLog(a_range) - fastLog((1.0f - pout)/(sigma*sqrtf(2.0f*PIFLOAT)));
+        m_inv_sigma2_ground[v] = 1.0f/(2.0f*sigma*sigma);
+    }
 }
 
 void Stixels::StixelsImpl::preComputeObject() {
-	const float pout = m_probabilities_params.out;
+    const float pout = m_probabilities_params.out;
 
-	for(int dis = 0; dis < m_max_dis; dis++) {
-		const float fn = (float) dis;
+    for(int dis = 0; dis < m_max_dis; dis++) {
+        const float fn = (float) dis;
 
-		const float sigma_object = fn*fn*m_model_params.rangeObjectsZ/(m_camera_parameters.focal *m_camera_parameters.baseline);
+        const float sigma_object = fn*fn*m_model_params.rangeObjectsZ/(m_camera_parameters.focal *m_camera_parameters.baseline);
         const float sigma = sqrtf(m_disparity_parameters.sigmaDisparityObject*m_disparity_parameters.sigmaDisparityObject +sigma_object*sigma_object);
 
-		const float a_range = 0.5f*(erf((m_max_disf-fn)/(sigma*sqrtf(2.0f)))-erf((-fn)/(sigma*sqrtf(2.0f))));
+        const float a_range = 0.5f*(erf((m_max_disf-fn)/(sigma*sqrtf(2.0f)))-erf((-fn)/(sigma*sqrtf(2.0f))));
 
-		m_normalization_object[dis] = fastLog(a_range) - fastLog((1.0f - pout)/(sigma*sqrtf(2.0f*PIFLOAT)));
-		m_inv_sigma2_object[dis] = 1.0f/(2.0f*sigma*sigma);
-	}
+        m_normalization_object[dis] = fastLog(a_range) - fastLog((1.0f - pout)/(sigma*sqrtf(2.0f*PIFLOAT)));
+        m_inv_sigma2_object[dis] = 1.0f/(2.0f*sigma*sigma);
+    }
 }
 
 float Stixels::StixelsImpl::computeDataCostObject(const float fn, const int dis, const float d) {
     float data_cost = m_export_probabilities_params.nExistsGivenObjectLOG;
-	if(!ALLOW_INVALID_DISPARITIES || d != INVALID_DISPARITY) {
-		const float model_diff = (d-fn);
-		const float pgaussian = m_normalization_object[dis] + model_diff*model_diff*m_inv_sigma2_object[dis];
+    if(!ALLOW_INVALID_DISPARITIES || d != INVALID_DISPARITY) {
+        const float model_diff = (d-fn);
+        const float pgaussian = m_normalization_object[dis] + model_diff*model_diff*m_inv_sigma2_object[dis];
 
-		const float p_data = fminf(m_export_probabilities_params.uniform, pgaussian);
-		data_cost = p_data + m_export_probabilities_params.nExistsGivenObjectNLOG;
-	}
-	return data_cost;
+        const float p_data = fminf(m_export_probabilities_params.uniform, pgaussian);
+        data_cost = p_data + m_export_probabilities_params.nExistsGivenObjectNLOG;
+    }
+    return data_cost;
 }
 
 void Stixels::StixelsImpl::preComputeSky() {
-	const float sigma = m_disparity_parameters.sigmaSky;
-	const float pout = m_probabilities_params.outSky;
+    const float sigma = m_disparity_parameters.sigmaSky;
+    const float pout = m_probabilities_params.outSky;
 
-	const float a_range = 0.5f*(erf(m_max_disf/(sigma*sqrtf(2.0f)))-erf(0.0f));
-	m_normalization_sky = fastLog(a_range) - logf((1.0f - pout)/(sigma*sqrtf(2.0f*PIFLOAT)));
-	m_inv_sigma2_sky = 1.0f/(2.0f*sigma*sigma);
+    const float a_range = 0.5f*(erf(m_max_disf/(sigma*sqrtf(2.0f)))-erf(0.0f));
+    m_normalization_sky = fastLog(a_range) - logf((1.0f - pout)/(sigma*sqrtf(2.0f*PIFLOAT)));
+    m_inv_sigma2_sky = 1.0f/(2.0f*sigma*sigma);
 }
 
 float Stixels::StixelsImpl::groundFunction(const int v) {
-	return m_estimated_camera_params.slope*(float)(m_estimated_camera_params.horizonPoint-v);
+    return m_estimated_camera_params.slope*(float)(m_estimated_camera_params.horizonPoint-v);
 }
 
 float Stixels::StixelsImpl::computeObjectDisparityRange(const float previous_mean) {
-	float range_disp = 0.0f;
-	if(previous_mean != 0) {
-		const float pmean_plus_z = (m_camera_parameters.focal *m_camera_parameters.baseline /previous_mean) + m_model_params.rangeObjectsZ;
-		range_disp = previous_mean - (m_camera_parameters.focal *m_camera_parameters.baseline /pmean_plus_z);
-	}
-	return range_disp;
+    float range_disp = 0.0f;
+    if(previous_mean != 0) {
+        const float pmean_plus_z = (m_camera_parameters.focal *m_camera_parameters.baseline /previous_mean) + m_model_params.rangeObjectsZ;
+        range_disp = previous_mean - (m_camera_parameters.focal *m_camera_parameters.baseline /pmean_plus_z);
+    }
+    return range_disp;
 }
 
 void Stixels::StixelsImpl::malloc_memory() {

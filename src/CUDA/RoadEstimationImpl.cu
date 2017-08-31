@@ -118,69 +118,69 @@ void RoadEstimation::RoadEstimationImpl::LoadDisparityImageD(const pixel_t* d_di
 }
 
 bool RoadEstimation::RoadEstimationImpl::Compute() {
-	bool ok = false;
+    bool ok = false;
 
-	// Compute the vDisparity histogram
-	ComputeHistogram<<<(m_rows*m_cols+256-1)/256, 256>>>(d_disparity_input, d_vDisp, m_rows, m_cols, MAX_DISPARITY);
-	ComputeMaximum<<<(m_rows*MAX_DISPARITY +256-1)/256, 256>>>(d_vDisp, d_maximum, m_rows, MAX_DISPARITY);
-	ComputeBinaryImage<<<(m_rows*MAX_DISPARITY +256-1)/256, 256>>>(d_vDisp, d_vDispBinary, d_maximum, m_roadEstimationParameters.binThr, m_rows, MAX_DISPARITY);
+    // Compute the vDisparity histogram
+    ComputeHistogram<<<(m_rows*m_cols+256-1)/256, 256>>>(d_disparity_input, d_vDisp, m_rows, m_cols, MAX_DISPARITY);
+    ComputeMaximum<<<(m_rows*MAX_DISPARITY +256-1)/256, 256>>>(d_vDisp, d_maximum, m_rows, MAX_DISPARITY);
+    ComputeBinaryImage<<<(m_rows*MAX_DISPARITY +256-1)/256, 256>>>(d_vDisp, d_vDispBinary, d_maximum, m_roadEstimationParameters.binThr, m_rows, MAX_DISPARITY);
 
     // Compute the Hough transform
-	float rho, theta;
+    float rho, theta;
     EstimatedCameraParameters roadParams;
-	if (ComputeHough(d_vDispBinary, rho, theta, roadParams)) {
-		m_rho = rho;
-		m_theta = theta;
+    if (ComputeHough(d_vDispBinary, rho, theta, roadParams)) {
+        m_rho = rho;
+        m_theta = theta;
         m_estimatedCameraParameters = roadParams;
-		ok = true;
-	}
-	return ok;
+        ok = true;
+    }
+    return ok;
 }
 
 bool RoadEstimation::RoadEstimationImpl::ComputeHough(uint8_t *d_vDispBinary, float& rho, float& theta,
     EstimatedCameraParameters& estimatedCameraParams) {
-	// Compute the Hough transform
-	std::vector<cv::Vec2f> lines;
-	cudaMemcpy(m_vDisp, d_vDispBinary, MAX_DISPARITY*m_rows*sizeof(uint8_t), cudaMemcpyDeviceToHost);
-	cv::Mat vDisp(m_rows, MAX_DISPARITY, CV_8UC1, m_vDisp);
-	cv::HoughLines(vDisp, lines, 1.0, 1.0 DEGREE, m_roadEstimationParameters.houghAccumThr);
+    // Compute the Hough transform
+    std::vector<cv::Vec2f> lines;
+    cudaMemcpy(m_vDisp, d_vDispBinary, MAX_DISPARITY*m_rows*sizeof(uint8_t), cudaMemcpyDeviceToHost);
+    cv::Mat vDisp(m_rows, MAX_DISPARITY, CV_8UC1, m_vDisp);
+    cv::HoughLines(vDisp, lines, 1.0, 1.0 DEGREE, m_roadEstimationParameters.houghAccumThr);
 
-	// Get the best line from hough
-	for (size_t i=0; i<lines.size(); i++) {
-		// Get rho and theta
-		rho = abs(lines[i][0]);
-		theta = lines[i][1];
+    // Get the best line from hough
+    for (size_t i=0; i<lines.size(); i++) {
+        // Get rho and theta
+        rho = abs(lines[i][0]);
+        theta = lines[i][1];
 
-		// Compute camera position
-		ComputeCameraProperties(vDisp, rho, theta, estimatedCameraParams);
+        // Compute camera position
+        ComputeCameraProperties(vDisp, rho, theta, estimatedCameraParams);
 
-		//printf("%f (%f %f) %f (%f %f)\n", 
+        //printf("%f (%f %f) %f (%f %f)\n", 
   //          estimatedCameraParams.pitch, m_roadEstimationParameters.minPitch, m_roadEstimationParameters.maxPitch, 
   //          estimatedCameraParams.cameraHeight, m_roadEstimationParameters.minCameraHeight, m_roadEstimationParameters.maxCameraHeight);
-		if (estimatedCameraParams.pitch >= m_roadEstimationParameters.minPitch && estimatedCameraParams.pitch <= m_roadEstimationParameters.maxPitch &&
+        if (estimatedCameraParams.pitch >= m_roadEstimationParameters.minPitch && estimatedCameraParams.pitch <= m_roadEstimationParameters.maxPitch &&
             estimatedCameraParams.cameraHeight >= m_roadEstimationParameters.minCameraHeight && estimatedCameraParams.cameraHeight <= m_roadEstimationParameters.maxCameraHeight) {
-			return true;
-		}
-	}
+            return true;
+        }
+    }
 
-	return false;
+    return false;
 }
 
 void RoadEstimation::RoadEstimationImpl::ComputeCameraProperties(cv::Mat vDisp, const float rho, const float theta,
     EstimatedCameraParameters& estimatedCameraParams) const
 {
-	// Compute Horizon Line (2D)
+    // Compute Horizon Line (2D)
     estimatedCameraParams.horizonPoint = rho/sinf(theta);
 
-	// Compute pitch -> arctan((cy - y0Hough)/focal) It is negative because y axis is inverted
+    // Compute pitch -> arctan((cy - y0Hough)/focal) It is negative because y axis is inverted
     estimatedCameraParams.pitch = -atanf((m_cameraParameters.cameraCenterY - estimatedCameraParams.horizonPoint)/(m_cameraParameters.focal));
 
-	// Compute the slope needed to compute the Camera height
-	float last_row = (float)(vDisp.rows-1);
-	float vDispDown = (rho-last_row*sinf(theta))/cosf(theta);
+    // Compute the slope needed to compute the Camera height
+    float last_row = (float)(vDisp.rows-1);
+    float vDispDown = (rho-last_row*sinf(theta))/cosf(theta);
     estimatedCameraParams.slope = (0 - vDispDown)/(estimatedCameraParams.horizonPoint - last_row);
 
-	// Compute the camera height -> baseline*cos(pitch)/slopeHough
+    // Compute the camera height -> baseline*cos(pitch)/slopeHough
     estimatedCameraParams.cameraHeight = m_cameraParameters.baseline*cosf(estimatedCameraParams.pitch)/ estimatedCameraParams.slope;
 }
 

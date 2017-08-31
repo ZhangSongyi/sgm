@@ -37,6 +37,7 @@
 #include <stdlib.h>
 #include <typeinfo>
 #include <opencv2/opencv.hpp>
+#include <opencv2/highgui.hpp>  
 
 #include <numeric>
 #include <stdlib.h>
@@ -59,15 +60,15 @@
 #define CFGBOOL(key) (config[key] == "true")
 
 int main(int argc, char *argv[]) {
-	if(argc < 2) {
-		std::cerr << "Usage: sgm config_file" << std::endl;
-		return EXIT_FAILURE;
-	}
-	if(MAX_DISPARITY != 128) {
-		std::cerr << "Due to implementation limitations MAX_DISPARITY must be 128" << std::endl;
-		return EXIT_FAILURE;
-	}
-	if(PATH_AGGREGATION != 4 && PATH_AGGREGATION != 8) {
+    if(argc < 2) {
+        std::cerr << "Usage: sgm config_file" << std::endl;
+        return EXIT_FAILURE;
+    }
+    if(MAX_DISPARITY != 128) {
+        std::cerr << "Due to implementation limitations MAX_DISPARITY must be 128" << std::endl;
+        return EXIT_FAILURE;
+    }
+    if(PATH_AGGREGATION != 4 && PATH_AGGREGATION != 8) {
         std::cerr << "Due to implementation limitations PATH_AGGREGATION must be 4 or 8" << std::endl;
         return EXIT_FAILURE;
     }
@@ -77,7 +78,7 @@ int main(int argc, char *argv[]) {
     config_file >> config;
     config_file.close();
 
-	const std::string left_video_path = config["left_video_path"];
+    const std::string left_video_path = config["left_video_path"];
     const std::string right_video_path = config["right_video_path"];
     const float prescale = CFG("prescale");
     const bool need_rect = CFGBOOL("need_rect");
@@ -198,6 +199,8 @@ int main(int argc, char *argv[]) {
     cv::Size rect_size = cv::Size(0, 0);
     cv::Rect rect_roi_up = cv::Rect(0, 0, 0, 0);
     cv::Rect rect_roi_down = cv::Rect(0, 0, 0, 0);
+    cv::Rect disp_roi_up = cv::Rect(0, 0, 0, 0);
+    cv::Rect disp_roi_down = cv::Rect(0, 0, 0, 0);
     cv::Mat mapLx, mapLy, mapRx, mapRy;
     cv::Mat Rl, Rr, Pl, Pr, Q;
 
@@ -213,136 +216,161 @@ int main(int argc, char *argv[]) {
             left_video.grab();
     }
 
+    cv::VideoWriter demoWriter;
+    bool demoWriterInit = false;
 
-    int currentFrame = 0;
-    while (true)
+    try
     {
-        if (!left_video.read(left_frame_input) || !right_video.read(right_frame_input))
+        int currentFrame = 0;
+        while (currentFrame < 12000)
         {
-            std::cerr << "Reach the end of video file" << std::endl;
-            break;
-        }
-        currentFrame++;
-        if (left_frame_input.size() != right_frame_input.size()) {
-            std::cerr << "Both images must have the same dimensions" << std::endl;
-            return EXIT_FAILURE;
-        }
-
-        cv::resize(left_frame_input, left_frame_input, cv::Size(0, 0), prescale, prescale);
-        cv::resize(right_frame_input, right_frame_input, cv::Size(0, 0), prescale, prescale);
-
-        if (left_frame_input.size() != frame_size)
-        {
-            frame_size = left_frame_input.size();
-            if (need_rect) {
-                stereoRectify(cameraMatrixL, cameraDistCoeffL, cameraMatrixR, cameraDistCoeffR, frame_size, cameraRotationMatrix, cameraTranslationMatrix,
-                    Rl, Rr, Pl, Pr, Q, cv::CALIB_ZERO_DISPARITY, 0);
-                initUndistortRectifyMap(cameraMatrixL, cameraDistCoeffL, Rl, Pl, frame_size, CV_32FC1, mapLx, mapLy);
-                initUndistortRectifyMap(cameraMatrixR, cameraDistCoeffR, Rr, Pr, frame_size, CV_32FC1, mapRx, mapRy);
-            }
-            std::cout << "FrameSize:" << frame_size.height << "*" << frame_size.width << std::endl;
-            cv::Size newSize = cv::Size(frame_size.width / 4 * 4, frame_size.height / 4 * 4);
-            if (newSize != rect_size)
+            if (!left_video.read(left_frame_input) || !right_video.read(right_frame_input))
             {
-                rect_size = newSize;
-                rect_roi_up = cv::Rect(0, 0, rect_size.width, rect_size.height);
-                rect_roi_down = cv::Rect(0, rect_size.height, rect_size.width, rect_size.height);
-                std::cout << "CutSize:" << rect_size.height << "*" << rect_size.width << std::endl;
-                mix_frame = cv::Mat::zeros(cv::Size(rect_size.width, rect_size.height * 2), CV_8UC3);
-                road_estimation.UpdateImageSize(rect_size);
-                stixles.UpdateImageSize(rect_size);
-                disparity_estimation.UpdateImageSize(rect_size);
+                std::cerr << "Reach the end of video file" << std::endl;
+                break;
             }
-        }
+            currentFrame++;
+            if (left_frame_input.size() != right_frame_input.size()) {
+                std::cerr << "Both images must have the same dimensions" << std::endl;
+                return EXIT_FAILURE;
+            }
 
-        if (need_rect) {
-            remap(left_frame_input, left_frame_rect, mapLx, mapLy, cv::INTER_LINEAR);
-            remap(right_frame_input, right_frame_rect, mapRx, mapRy, cv::INTER_LINEAR);
-        }
-        else {
-            left_frame_rect = left_frame_input;
-            right_frame_rect = right_frame_input;
-        }
+            cv::resize(left_frame_input, left_frame_input, cv::Size(0, 0), prescale, prescale);
+            cv::resize(right_frame_input, right_frame_input, cv::Size(0, 0), prescale, prescale);
 
-        left_frame_rect = left_frame_rect(rect_roi_up);
-        right_frame_rect = right_frame_rect(rect_roi_up);
-        
-        if (left_frame_rect.channels() > 1) {
-            left_frame_color = left_frame_rect;
-            cv::cvtColor(left_frame_rect, left_frame_grey, CV_RGB2GRAY);
-        } 
-        else {
-            cv::cvtColor(left_frame_rect, left_frame_color, CV_GRAY2BGR);
-            left_frame_grey = left_frame_rect;
+            if (left_frame_input.size() != frame_size)
+            {
+                frame_size = left_frame_input.size();
+                if (need_rect) {
+                    stereoRectify(cameraMatrixL, cameraDistCoeffL, cameraMatrixR, cameraDistCoeffR, frame_size, cameraRotationMatrix, cameraTranslationMatrix,
+                        Rl, Rr, Pl, Pr, Q, cv::CALIB_ZERO_DISPARITY, 0);
+                    initUndistortRectifyMap(cameraMatrixL, cameraDistCoeffL, Rl, Pl, frame_size, CV_32FC1, mapLx, mapLy);
+                    initUndistortRectifyMap(cameraMatrixR, cameraDistCoeffR, Rr, Pr, frame_size, CV_32FC1, mapRx, mapRy);
+                }
+                std::cout << "FrameSize:" << frame_size.height << "*" << frame_size.width << std::endl;
+                cv::Size newSize = cv::Size(frame_size.width / 4 * 4, frame_size.height / 4 * 4);
+                if (newSize != rect_size)
+                {
+                    rect_size = newSize;
+                    rect_roi_up = cv::Rect(0, 0, rect_size.width, rect_size.height);
+                    rect_roi_down = cv::Rect(0, rect_size.height, rect_size.width, rect_size.height);
+                    disp_roi_up = cv::Rect(0, 0, rect_size.width, (int)(rect_size.height * 0.8));
+                    disp_roi_down = cv::Rect(0, (int)(rect_size.height * 0.8), rect_size.width, (int)(rect_size.height * 0.8));
+                    std::cout << "CutSize:" << rect_size.height << "*" << rect_size.width << std::endl;
+                    if (!demoWriterInit) {
+                        demoWriterInit = true;
+                        demoWriter.open("D:\\IAIR\\Repos\\sgm\\demo.avi", CV_FOURCC('D', 'I', 'V', 'X'), 25.0, cv::Size(rect_size.width, (int)(rect_size.height * 0.8) * 2));
+                        if (!demoWriter.isOpened()) {
+                            std::cerr << "Could not open the output video file for write\n";
+                            return -1;
+                        }
+                    }
+                    //mix_frame = cv::Mat::zeros(cv::Size(rect_size.width, rect_size.height * 2), CV_8UC3);
+                    mix_frame = cv::Mat::zeros(cv::Size(rect_size.width, (int)(rect_size.height * 0.8) * 2), CV_8UC3);
+                    road_estimation.UpdateImageSize(rect_size);
+                    stixles.UpdateImageSize(rect_size);
+                    disparity_estimation.UpdateImageSize(rect_size);
+                }
+            }
+
+            if (need_rect) {
+                remap(left_frame_input, left_frame_rect, mapLx, mapLy, cv::INTER_LINEAR);
+                remap(right_frame_input, right_frame_rect, mapRx, mapRy, cv::INTER_LINEAR);
+            }
+            else {
+                left_frame_rect = left_frame_input;
+                right_frame_rect = right_frame_input;
+            }
+
+            left_frame_rect = left_frame_rect(rect_roi_up);
+            right_frame_rect = right_frame_rect(rect_roi_up);
+
+            if (left_frame_rect.channels() > 1) {
+                left_frame_color = left_frame_rect;
+                cv::cvtColor(left_frame_rect, left_frame_grey, CV_BGR2GRAY);
+            }
+            else {
+                cv::cvtColor(left_frame_rect, left_frame_color, CV_GRAY2BGR);
+                left_frame_grey = left_frame_rect;
+            }
+
+            if (right_frame_rect.channels() > 1) {
+                right_frame_color = right_frame_rect;
+                cv::cvtColor(right_frame_rect, right_frame_grey, CV_BGR2GRAY);
+            }
+            else {
+                cv::cvtColor(right_frame_rect, right_frame_color, CV_GRAY2BGR);
+                right_frame_grey = right_frame_rect;
+            }
+            disparity_estimation.LoadImages(left_frame_grey, right_frame_grey);
+            float elapsed_time_ms;
+            disparity_estimation.Compute(&elapsed_time_ms);
+            std::cout << currentFrame << ":" << elapsed_time_ms << "ms" << std::endl;
+            disparity_im = disparity_estimation.FetchDisparityResult();
+            disparity_im_color = disparity_estimation.FetchColoredDisparityResult();
+
+            pixel_t* disparityResultPixelD = disparity_estimation.FetchDisparityResultPixelD();
+            road_estimation.LoadDisparityImageD(disparityResultPixelD);
+            const bool ok = road_estimation.Compute();
+            if (!ok) {
+                printf("Can't compute road estimation\n");
+                continue;
+            }
+
+            // Get Camera Parameters
+            estimated_camera_parameters = road_estimation.FetchEstimatedCameraParameters();
+
+            if (estimated_camera_parameters.pitch == 0 && estimated_camera_parameters.cameraHeight == 0 && estimated_camera_parameters.horizonPoint == 0 && estimated_camera_parameters.slope == 0) {
+                printf("Can't compute road estimation\n");
+                continue;
+            }
+
+            std::cout << "Camera Parameters -> Tilt: " << estimated_camera_parameters.pitch << " Height: " << estimated_camera_parameters.cameraHeight << " vHor: " << estimated_camera_parameters.horizonPoint << " alpha_ground: " << estimated_camera_parameters.slope << std::endl;
+
+            if (estimated_camera_parameters.cameraHeight < 0 || estimated_camera_parameters.cameraHeight > 5 ||
+                estimated_camera_parameters.horizonPoint < 0 || estimated_camera_parameters.slope < 0) {
+                printf("Error happened in computing road estimation\n");
+                continue;
+            }
+
+            stixles.LoadDisparityImageD(disparityResultPixelD, estimated_camera_parameters);
+            stixles.Compute(&elapsed_time_ms);
+            Section *stx = stixles.FetchStixels();
+            int realCols = stixles.FetchRealCols();
+
+            cv::Mat left_frame_stx;
+            ShowStixels(left_frame_color, left_frame_stx, stx, stixel_model_parameters, realCols, estimated_camera_parameters.horizonPoint, max_dis_display, disparity_sky);
+
+            //MIX IMGS TOGETHER
+            //left_frame_color.copyTo(mix_frame(rect_roi_up));
+            //cv::cvtColor(disparity_im, disparity_im_color, CV_GRAY2BGR);
+            //left_frame_stx.copyTo(mix_frame(rect_roi_up));
+            //disparity_im_color.copyTo(mix_frame(rect_roi_down));
+            (left_frame_stx(disp_roi_up)).copyTo(mix_frame(disp_roi_up));
+            (disparity_im_color(disp_roi_up)).copyTo(mix_frame(disp_roi_down));
+            demoWriter << mix_frame;
+            //cv::imshow("Test", mix_frame);
+
+            char c = cv::waitKey(1);
+            if (c == 27) break;
+            if (c != -1)
+            {
+                std::cout << "PAUSED" << c << std::endl;
+                cv::waitKey(0);
+            }
+
         }
+    }
+    catch (const std::exception&)
+    {
             
-        if (right_frame_rect.channels() > 1) {
-            right_frame_color = right_frame_rect;
-            cv::cvtColor(right_frame_rect, right_frame_grey, CV_RGB2GRAY);
-        }
-        else {
-            cv::cvtColor(right_frame_rect, right_frame_color, CV_GRAY2BGR);
-            right_frame_grey = right_frame_rect;
-        }
-        disparity_estimation.LoadImages(left_frame_grey, right_frame_grey);
-        float elapsed_time_ms;
-        disparity_estimation.Compute(&elapsed_time_ms);
-        std::cout << currentFrame << ":" << elapsed_time_ms << "ms" << std::endl;
-        disparity_im = disparity_estimation.FetchDisparityResult();
-        disparity_im_color = disparity_estimation.FetchColoredDisparityResult();
-
-        pixel_t* disparityResultPixelD = disparity_estimation.FetchDisparityResultPixelD();
-        road_estimation.LoadDisparityImageD(disparityResultPixelD);
-        const bool ok = road_estimation.Compute();
-        if (!ok) {
-            printf("Can't compute road estimation\n");
-            continue;
-        }
-
-        // Get Camera Parameters
-        estimated_camera_parameters = road_estimation.FetchEstimatedCameraParameters();
-
-        if (estimated_camera_parameters.pitch == 0 && estimated_camera_parameters.cameraHeight == 0 && estimated_camera_parameters.horizonPoint == 0 && estimated_camera_parameters.slope == 0) {
-            printf("Can't compute road estimation\n");
-            continue;
-        }
-
-        std::cout << "Camera Parameters -> Tilt: " << estimated_camera_parameters.pitch << " Height: " << estimated_camera_parameters.cameraHeight << " vHor: " << estimated_camera_parameters.horizonPoint << " alpha_ground: " << estimated_camera_parameters.slope << std::endl;
-
-        if (estimated_camera_parameters.cameraHeight < 0 || estimated_camera_parameters.cameraHeight > 5 ||
-            estimated_camera_parameters.horizonPoint < 0 || estimated_camera_parameters.slope < 0) {
-            printf("Error happened in computing road estimation\n");
-            continue;
-        }
-
-        stixles.LoadDisparityImageD(disparityResultPixelD, estimated_camera_parameters);
-        stixles.Compute(&elapsed_time_ms);
-        Section *stx = stixles.FetchStixels();
-        int realCols = stixles.FetchRealCols();
-
-        cv::Mat left_frame_stx;
-        ShowStixels(left_frame_color, left_frame_stx, stx, stixel_model_parameters, realCols, estimated_camera_parameters.horizonPoint, max_dis_display, disparity_sky);
-
-        //MIX IMGS TOGETHER
-        //left_frame_color.copyTo(mix_frame(rect_roi_up));
-        //cv::cvtColor(disparity_im, disparity_im_color, CV_GRAY2BGR);
-        left_frame_stx.copyTo(mix_frame(rect_roi_up));
-        disparity_im_color.copyTo(mix_frame(rect_roi_down));
-        cv::imshow("Test", mix_frame);
-
-        char c = cv::waitKey(1);
-        if (c == 27) break;
-        if (c != -1)
-        {
-            std::cout << "PAUSED" << c << std::endl;
-            cv::waitKey(0);
-        }
-
     }
 
+    
+    demoWriter.release();
     stixles.Finish();
     road_estimation.Finish();
     disparity_estimation.Finish();
     cv::waitKey();
-	return 0;
+    return 0;
 }

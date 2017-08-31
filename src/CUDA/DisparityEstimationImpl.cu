@@ -157,56 +157,56 @@ void DisparityEstimation::DisparityEstimationImpl::LoadImagesD(const uint8_t* d_
 }
 
 void DisparityEstimation::DisparityEstimationImpl::Compute(float *elapsed_time_ms) {
-	cudaEvent_t start, stop;
-	cudaEventCreate(&start);
-	cudaEventCreate(&stop);
-	cudaEventRecord(start, 0);
+    cudaEvent_t start, stop;
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
+    cudaEventRecord(start, 0);
 
-	dim3 block_size;
-	block_size.x = 32;
-	block_size.y = 32;
+    dim3 block_size;
+    block_size.x = 32;
+    block_size.y = 32;
 
-	dim3 grid_size;
-	grid_size.x = (cols+block_size.x-1) / block_size.x;
-	grid_size.y = (rows+block_size.y-1) / block_size.y;
+    dim3 grid_size;
+    grid_size.x = (cols+block_size.x-1) / block_size.x;
+    grid_size.y = (rows+block_size.y-1) / block_size.y;
 
-	debug_log("Calling CSCT");
-	CenterSymmetricCensusKernelSM2<<<grid_size, block_size, 0, stream1>>>(d_im0, d_im1, d_transform0, d_transform1, rows, cols);
+    debug_log("Calling CSCT");
+    CenterSymmetricCensusKernelSM2<<<grid_size, block_size, 0, stream1>>>(d_im0, d_im1, d_transform0, d_transform1, rows, cols);
 
-	// Hamming distance
-	CUDA_CHECK_RETURN(cudaStreamSynchronize(stream1));
-	debug_log("Calling Hamming Distance");
-	HammingDistanceCostKernel<<<rows, MAX_DISPARITY, 0, stream1>>>(d_transform0, d_transform1, d_cost, rows, cols);
+    // Hamming distance
+    CUDA_CHECK_RETURN(cudaStreamSynchronize(stream1));
+    debug_log("Calling Hamming Distance");
+    HammingDistanceCostKernel<<<rows, MAX_DISPARITY, 0, stream1>>>(d_transform0, d_transform1, d_cost, rows, cols);
 
-	// Cost Aggregation
-	const int PIXELS_PER_BLOCK = COSTAGG_BLOCKSIZE/WARP_SIZE;
-	const int PIXELS_PER_BLOCK_HORIZ = COSTAGG_BLOCKSIZE_HORIZ/WARP_SIZE;
+    // Cost Aggregation
+    const int PIXELS_PER_BLOCK = COSTAGG_BLOCKSIZE/WARP_SIZE;
+    const int PIXELS_PER_BLOCK_HORIZ = COSTAGG_BLOCKSIZE_HORIZ/WARP_SIZE;
 
-	debug_log("Calling Left to Right");
-	CostAggregationKernelLeftToRight<<<(rows+PIXELS_PER_BLOCK_HORIZ-1)/PIXELS_PER_BLOCK_HORIZ, COSTAGG_BLOCKSIZE_HORIZ, 0, stream2>>>(d_cost, d_L0, p1, p2, rows, cols, d_transform0, d_transform1, d_disparity, d_L0, d_L1, d_L2, d_L3, d_L4, d_L5, d_L6);
-	debug_log("Calling Right to Left");
-	CostAggregationKernelRightToLeft<<<(rows+PIXELS_PER_BLOCK_HORIZ-1)/PIXELS_PER_BLOCK_HORIZ, COSTAGG_BLOCKSIZE_HORIZ, 0, stream3>>>(d_cost, d_L1, p1, p2, rows, cols, d_transform0, d_transform1, d_disparity, d_L0, d_L1, d_L2, d_L3, d_L4, d_L5, d_L6);
-	debug_log("Calling Up to Down");
-	CostAggregationKernelUpToDown<<<(cols+PIXELS_PER_BLOCK-1)/PIXELS_PER_BLOCK, COSTAGG_BLOCKSIZE, 0, stream1>>>(d_cost, d_L2, p1, p2, rows, cols, d_transform0, d_transform1, d_disparity, d_L0, d_L1, d_L2, d_L3, d_L4, d_L5, d_L6);
-	CUDA_CHECK_RETURN(cudaDeviceSynchronize());
-	debug_log("Calling Down to Up");
-	CostAggregationKernelDownToUp<<<(cols+PIXELS_PER_BLOCK-1)/PIXELS_PER_BLOCK, COSTAGG_BLOCKSIZE, 0, stream1>>>(d_cost, d_L3, p1, p2, rows, cols, d_transform0, d_transform1, d_disparity, d_L0, d_L1, d_L2, d_L3, d_L4, d_L5, d_L6);
+    debug_log("Calling Left to Right");
+    CostAggregationKernelLeftToRight<<<(rows+PIXELS_PER_BLOCK_HORIZ-1)/PIXELS_PER_BLOCK_HORIZ, COSTAGG_BLOCKSIZE_HORIZ, 0, stream2>>>(d_cost, d_L0, p1, p2, rows, cols, d_transform0, d_transform1, d_disparity, d_L0, d_L1, d_L2, d_L3, d_L4, d_L5, d_L6);
+    debug_log("Calling Right to Left");
+    CostAggregationKernelRightToLeft<<<(rows+PIXELS_PER_BLOCK_HORIZ-1)/PIXELS_PER_BLOCK_HORIZ, COSTAGG_BLOCKSIZE_HORIZ, 0, stream3>>>(d_cost, d_L1, p1, p2, rows, cols, d_transform0, d_transform1, d_disparity, d_L0, d_L1, d_L2, d_L3, d_L4, d_L5, d_L6);
+    debug_log("Calling Up to Down");
+    CostAggregationKernelUpToDown<<<(cols+PIXELS_PER_BLOCK-1)/PIXELS_PER_BLOCK, COSTAGG_BLOCKSIZE, 0, stream1>>>(d_cost, d_L2, p1, p2, rows, cols, d_transform0, d_transform1, d_disparity, d_L0, d_L1, d_L2, d_L3, d_L4, d_L5, d_L6);
+    CUDA_CHECK_RETURN(cudaDeviceSynchronize());
+    debug_log("Calling Down to Up");
+    CostAggregationKernelDownToUp<<<(cols+PIXELS_PER_BLOCK-1)/PIXELS_PER_BLOCK, COSTAGG_BLOCKSIZE, 0, stream1>>>(d_cost, d_L3, p1, p2, rows, cols, d_transform0, d_transform1, d_disparity, d_L0, d_L1, d_L2, d_L3, d_L4, d_L5, d_L6);
 
 #if PATH_AGGREGATION == 8
-	CostAggregationKernelDiagonalDownUpLeftRight<<<(cols+PIXELS_PER_BLOCK-1)/PIXELS_PER_BLOCK, COSTAGG_BLOCKSIZE, 0, stream1>>>(d_cost, d_L4, p1, p2, rows, cols, d_transform0, d_transform1, d_disparity, d_L0, d_L1, d_L2, d_L3, d_L4, d_L5, d_L6);
-	CostAggregationKernelDiagonalUpDownLeftRight<<<(cols+PIXELS_PER_BLOCK-1)/PIXELS_PER_BLOCK, COSTAGG_BLOCKSIZE, 0, stream1>>>(d_cost, d_L5, p1, p2, rows, cols, d_transform0, d_transform1, d_disparity, d_L0, d_L1, d_L2, d_L3, d_L4, d_L5, d_L6);
+    CostAggregationKernelDiagonalDownUpLeftRight<<<(cols+PIXELS_PER_BLOCK-1)/PIXELS_PER_BLOCK, COSTAGG_BLOCKSIZE, 0, stream1>>>(d_cost, d_L4, p1, p2, rows, cols, d_transform0, d_transform1, d_disparity, d_L0, d_L1, d_L2, d_L3, d_L4, d_L5, d_L6);
+    CostAggregationKernelDiagonalUpDownLeftRight<<<(cols+PIXELS_PER_BLOCK-1)/PIXELS_PER_BLOCK, COSTAGG_BLOCKSIZE, 0, stream1>>>(d_cost, d_L5, p1, p2, rows, cols, d_transform0, d_transform1, d_disparity, d_L0, d_L1, d_L2, d_L3, d_L4, d_L5, d_L6);
 
-	CostAggregationKernelDiagonalDownUpRightLeft<<<(cols+PIXELS_PER_BLOCK-1)/PIXELS_PER_BLOCK, COSTAGG_BLOCKSIZE, 0, stream1>>>(d_cost, d_L6, p1, p2, rows, cols, d_transform0, d_transform1, d_disparity, d_L0, d_L1, d_L2, d_L3, d_L4, d_L5, d_L6);
-	CostAggregationKernelDiagonalUpDownRightLeft<<<(cols+PIXELS_PER_BLOCK-1)/PIXELS_PER_BLOCK, COSTAGG_BLOCKSIZE, 0, stream1>>>(d_cost, d_L7, p1, p2, rows, cols, d_transform0, d_transform1, d_disparity, d_L0, d_L1, d_L2, d_L3, d_L4, d_L5, d_L6);
+    CostAggregationKernelDiagonalDownUpRightLeft<<<(cols+PIXELS_PER_BLOCK-1)/PIXELS_PER_BLOCK, COSTAGG_BLOCKSIZE, 0, stream1>>>(d_cost, d_L6, p1, p2, rows, cols, d_transform0, d_transform1, d_disparity, d_L0, d_L1, d_L2, d_L3, d_L4, d_L5, d_L6);
+    CostAggregationKernelDiagonalUpDownRightLeft<<<(cols+PIXELS_PER_BLOCK-1)/PIXELS_PER_BLOCK, COSTAGG_BLOCKSIZE, 0, stream1>>>(d_cost, d_L7, p1, p2, rows, cols, d_transform0, d_transform1, d_disparity, d_L0, d_L1, d_L2, d_L3, d_L4, d_L5, d_L6);
 #endif
-	debug_log("Calling Median Filter");
-	MedianFilter3x3<<<(size+MAX_DISPARITY-1)/MAX_DISPARITY, MAX_DISPARITY, 0, stream1>>>(d_disparity, d_disparity_filtered_uchar, rows, cols);
+    debug_log("Calling Median Filter");
+    MedianFilter3x3<<<(size+MAX_DISPARITY-1)/MAX_DISPARITY, MAX_DISPARITY, 0, stream1>>>(d_disparity, d_disparity_filtered_uchar, rows, cols);
     
-	cudaEventRecord(stop, 0);
-	CUDA_CHECK_RETURN(cudaDeviceSynchronize());
-	cudaEventElapsedTime(elapsed_time_ms, start, stop);
-	cudaEventDestroy(start);
-	cudaEventDestroy(stop);
+    cudaEventRecord(stop, 0);
+    CUDA_CHECK_RETURN(cudaDeviceSynchronize());
+    cudaEventElapsedTime(elapsed_time_ms, start, stop);
+    cudaEventDestroy(start);
+    cudaEventDestroy(stop);
 }
 
 cv::Mat DisparityEstimation::DisparityEstimationImpl::FetchDisparityResult()
@@ -236,13 +236,13 @@ pixel_t* DisparityEstimation::DisparityEstimationImpl::FetchDisparityResultPixel
 }
 
 void DisparityEstimation::DisparityEstimationImpl::Finish() {
-	if(!first_alloc) {
-		free_memory();
+    if(!first_alloc) {
+        free_memory();
         CUDA_CHECK_RETURN(cudaFree(d_color_table));
-		CUDA_CHECK_RETURN(cudaStreamDestroy(stream1));
-		CUDA_CHECK_RETURN(cudaStreamDestroy(stream2));
-		CUDA_CHECK_RETURN(cudaStreamDestroy(stream3));
-	}
+        CUDA_CHECK_RETURN(cudaStreamDestroy(stream1));
+        CUDA_CHECK_RETURN(cudaStreamDestroy(stream2));
+        CUDA_CHECK_RETURN(cudaStreamDestroy(stream3));
+    }
 }
 
 void DisparityEstimation::DisparityEstimationImpl::malloc_memory() {
@@ -270,27 +270,27 @@ void DisparityEstimation::DisparityEstimationImpl::malloc_memory() {
 }
 
 void DisparityEstimation::DisparityEstimationImpl::free_memory() {
-	CUDA_CHECK_RETURN(cudaFree(d_im0));
-	CUDA_CHECK_RETURN(cudaFree(d_im1));
-	CUDA_CHECK_RETURN(cudaFree(d_transform0));
-	CUDA_CHECK_RETURN(cudaFree(d_transform1));
-	CUDA_CHECK_RETURN(cudaFree(d_L0));
-	CUDA_CHECK_RETURN(cudaFree(d_L1));
-	CUDA_CHECK_RETURN(cudaFree(d_L2));
-	CUDA_CHECK_RETURN(cudaFree(d_L3));
+    CUDA_CHECK_RETURN(cudaFree(d_im0));
+    CUDA_CHECK_RETURN(cudaFree(d_im1));
+    CUDA_CHECK_RETURN(cudaFree(d_transform0));
+    CUDA_CHECK_RETURN(cudaFree(d_transform1));
+    CUDA_CHECK_RETURN(cudaFree(d_L0));
+    CUDA_CHECK_RETURN(cudaFree(d_L1));
+    CUDA_CHECK_RETURN(cudaFree(d_L2));
+    CUDA_CHECK_RETURN(cudaFree(d_L3));
 #if PATH_AGGREGATION == 8
-	CUDA_CHECK_RETURN(cudaFree(d_L4));
-	CUDA_CHECK_RETURN(cudaFree(d_L5));
-	CUDA_CHECK_RETURN(cudaFree(d_L6));
-	CUDA_CHECK_RETURN(cudaFree(d_L7));
+    CUDA_CHECK_RETURN(cudaFree(d_L4));
+    CUDA_CHECK_RETURN(cudaFree(d_L5));
+    CUDA_CHECK_RETURN(cudaFree(d_L6));
+    CUDA_CHECK_RETURN(cudaFree(d_L7));
 #endif
-	CUDA_CHECK_RETURN(cudaFree(d_disparity));
-	CUDA_CHECK_RETURN(cudaFree(d_disparity_filtered_uchar));
+    CUDA_CHECK_RETURN(cudaFree(d_disparity));
+    CUDA_CHECK_RETURN(cudaFree(d_disparity_filtered_uchar));
     CUDA_CHECK_RETURN(cudaFree(d_disparity_filtered_pixel));
     CUDA_CHECK_RETURN(cudaFree(d_disparity_filtered_colored_uchar));
-	CUDA_CHECK_RETURN(cudaFree(d_cost));
+    CUDA_CHECK_RETURN(cudaFree(d_cost));
 
-	delete[] h_disparity;
+    delete[] h_disparity;
     delete[] h_disparity_colored;
 }
 

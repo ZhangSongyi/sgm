@@ -36,13 +36,13 @@
 
 class Stixels {
 public:
-	Stixels();
-	~Stixels();
-	void Initialize();
-	void Compute(float* elapsed_time_ms);
-	Section* FetchStixels();
-	int FetchRealCols();
-	void Finish();
+    Stixels();
+    ~Stixels();
+    void Initialize();
+    void Compute(float* elapsed_time_ms);
+    Section* FetchStixels();
+    int FetchRealCols();
+    void Finish();
     void LoadDisparityImage(const pixel_t* m_disp, const EstimatedCameraParameters estimated_camera_params);
     void LoadDisparityImageD(const pixel_t* d_disp, const EstimatedCameraParameters estimated_camera_params);
     void UpdateImageSize(cv::Size image_size);
