@@ -16,6 +16,7 @@ while (std::getline( ins, s )) {
   
     // Extract the key value
     std::string::size_type end = s.find( '=', begin );
+    if (end == std::string::npos) continue;
     key = s.substr( begin, end - begin );
   
     // (No leading or trailing whitespace allowed)

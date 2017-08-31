@@ -56,7 +56,7 @@
 #include "RoadEstimation.h"
 #include "showStixels.h"
 
-#define CFG(key) atof(config[key].c_str())
+#define CFGDOUBLE(key) atof(config[key].c_str())
 #define CFGBOOL(key) (config[key] == "true")
 
 int main(int argc, char *argv[]) {
@@ -80,95 +80,95 @@ int main(int argc, char *argv[]) {
 
     const std::string left_video_path = config["left_video_path"];
     const std::string right_video_path = config["right_video_path"];
-    const float prescale = CFG("prescale");
+    const float prescale = CFGDOUBLE("prescale");
     const bool need_rect = CFGBOOL("need_rect");
-    const int video_alignment = CFG("video_alignment");
+    const int video_alignment = CFGDOUBLE("video_alignment");
 
     const cv::Mat cameraMatrixL = (cv::Mat_<double>(3, 3) <<
-        CFG("l_fx") * prescale, 0, CFG("l_cx") * prescale,
-        0, CFG("l_fy") * prescale, CFG("l_cy") * prescale,
+        CFGDOUBLE("l_fx") * prescale, 0, CFGDOUBLE("l_cx") * prescale,
+        0, CFGDOUBLE("l_fy") * prescale, CFGDOUBLE("l_cy") * prescale,
         0, 0, 1);
     const cv::Mat cameraMatrixR = (cv::Mat_<double>(3, 3) <<
-        CFG("r_fx") * prescale, 0, CFG("r_cx") * prescale,
-        0, CFG("r_fy") * prescale, CFG("r_cy") * prescale,
+        CFGDOUBLE("r_fx") * prescale, 0, CFGDOUBLE("r_cx") * prescale,
+        0, CFGDOUBLE("r_fy") * prescale, CFGDOUBLE("r_cy") * prescale,
         0, 0, 1);
     const CameraParameters camera_parameters = {
-        /*cameraCenterX      = */ CFG("l_cx") * prescale,
-        /*cameraCenterY      = */ CFG("l_cy") * prescale,
-        /*baseline           = */ CFG("tr_x"),
-        /*focal              = */ CFG("l_fx")
+        /*cameraCenterX      = */ CFGDOUBLE("l_cx") * prescale,
+        /*cameraCenterY      = */ CFGDOUBLE("l_cy") * prescale,
+        /*baseline           = */ CFGDOUBLE("tr_x"),
+        /*focal              = */ CFGDOUBLE("l_fx")
     };
     const cv::Mat cameraDistCoeffL = (cv::Mat_<double>(1, 5) <<
-        CFG("l_k1"), CFG("l_k2"),
-        CFG("l_p1"), CFG("l_p2"),
-        CFG("l_k3"));
+        CFGDOUBLE("l_k1"), CFGDOUBLE("l_k2"),
+        CFGDOUBLE("l_p1"), CFGDOUBLE("l_p2"),
+        CFGDOUBLE("l_k3"));
     const cv::Mat cameraDistCoeffR = (cv::Mat_<double>(1, 5) <<
-        CFG("r_k1"), CFG("r_k2"),
-        CFG("r_p1"), CFG("r_p2"),
-        CFG("r_k3"));
+        CFGDOUBLE("r_k1"), CFGDOUBLE("r_k2"),
+        CFGDOUBLE("r_p1"), CFGDOUBLE("r_p2"),
+        CFGDOUBLE("r_k3"));
 
     const cv::Mat cameraRotationMatrix = (cv::Mat_<double>(3, 3) <<
-        CFG("rt_11"), CFG("rt_12"), CFG("rt_13"),
-        CFG("rt_21"), CFG("rt_22"), CFG("rt_23"),
-        CFG("rt_31"), CFG("rt_32"), CFG("rt_33"));
+        CFGDOUBLE("rt_11"), CFGDOUBLE("rt_12"), CFGDOUBLE("rt_13"),
+        CFGDOUBLE("rt_21"), CFGDOUBLE("rt_22"), CFGDOUBLE("rt_23"),
+        CFGDOUBLE("rt_31"), CFGDOUBLE("rt_32"), CFGDOUBLE("rt_33"));
 
     const cv::Mat cameraTranslationMatrix = (cv::Mat_<double>(3, 1) <<
-        CFG("tr_x"),
-        CFG("tr_y"),
-        CFG("tr_z"));
+        CFGDOUBLE("tr_x"),
+        CFGDOUBLE("tr_y"),
+        CFGDOUBLE("tr_z"));
 
-    const int p1 = CFG("p1");
-    const int p2 = CFG("p2");
+    const int p1 = CFGDOUBLE("p1");
+    const int p2 = CFGDOUBLE("p2");
 
     const RoadEstimationParameters road_estimation_parameters = {
-        /* rangeAngleX       = */ CFG("range_angle_x"),
-        /* rangeAngleY       = */ CFG("range_angle_y"),
-        /* houghAccumThr     = */ CFG("hough_accum_thr"),
-        /* binThr            = */ CFG("bin_thr"),
-        /* maxPitch          = */ CFG("max_pitch") DEGREE,
-        /* minPitch          = */ CFG("min_pitch") DEGREE,
-        /* maxCameraHeight   = */ CFG("max_cam_height"),
-        /* minCameraHeight   = */ CFG("min_cam_height"),
+        /* rangeAngleX       = */ CFGDOUBLE("range_angle_x"),
+        /* rangeAngleY       = */ CFGDOUBLE("range_angle_y"),
+        /* houghAccumThr     = */ CFGDOUBLE("hough_accum_thr"),
+        /* binThr            = */ CFGDOUBLE("bin_thr"),
+        /* maxPitch          = */ CFGDOUBLE("max_pitch") DEGREE,
+        /* minPitch          = */ CFGDOUBLE("min_pitch") DEGREE,
+        /* maxCameraHeight   = */ CFGDOUBLE("max_cam_height"),
+        /* minCameraHeight   = */ CFGDOUBLE("min_cam_height"),
     };
 
     const ProbabilitiesParameters probabilities_parameters = {
-        /* out               = */ CFG("out"),
-        /* outSky            = */ CFG("out_sky"),
-        /* groundGivenNExist = */ CFG("ground_gne"),
-        /* objectGivenNExist = */ CFG("object_gne"),
-        /* skyGivenNExist    = */ CFG("sky_gne"),
-        /* nExistDis         = */ CFG("ned"),
-        /* ground            = */ CFG("ground"),
-        /* object            = */ CFG("object"),
-        /* sky               = */ CFG("sky"),
-        /* ord               = */ CFG("ord"),
-        /* grav              = */ CFG("grav"),
-        /* blg               = */ CFG("blg")
+        /* out               = */ CFGDOUBLE("out"),
+        /* outSky            = */ CFGDOUBLE("out_sky"),
+        /* groundGivenNExist = */ CFGDOUBLE("ground_gne"),
+        /* objectGivenNExist = */ CFGDOUBLE("object_gne"),
+        /* skyGivenNExist    = */ CFGDOUBLE("sky_gne"),
+        /* nExistDis         = */ CFGDOUBLE("ned"),
+        /* ground            = */ CFGDOUBLE("ground"),
+        /* object            = */ CFGDOUBLE("object"),
+        /* sky               = */ CFGDOUBLE("sky"),
+        /* ord               = */ CFGDOUBLE("ord"),
+        /* grav              = */ CFGDOUBLE("grav"),
+        /* blg               = */ CFGDOUBLE("blg")
     };
 
     const StixelModelParameters stixel_model_parameters = {
-        /* columnStep        = */ CFG("column_step"),
+        /* columnStep        = */ CFGDOUBLE("column_step"),
         /* medianStep        = */ CFGBOOL("median_step"),
-        /* epsilon           = */ CFG("epsilon"),
-        /* rangeObjectsZ     = */ CFG("range_object_z"), // in meters
-        /* widthMargin       = */ CFG("width_margin"),
-        /* maxSections       = */ CFG("max_sections")
+        /* epsilon           = */ CFGDOUBLE("epsilon"),
+        /* rangeObjectsZ     = */ CFGDOUBLE("range_object_z"), // in meters
+        /* widthMargin       = */ CFGDOUBLE("width_margin"),
+        /* maxSections       = */ CFGDOUBLE("max_sections")
     };
 
     const DisparityParameters disparity_parameters {
         /* maxDisparity         = */ MAX_DISPARITY,
-        /* sigmaDisparityObject = */ CFG("sigma_object"),
-        /* sigmaDisparityGround = */ CFG("sigma_ground"),
-        /* sigmaSky             = */ CFG("sigma_sky") // Should be small compared to sigma_dis
+        /* sigmaDisparityObject = */ CFGDOUBLE("sigma_object"),
+        /* sigmaDisparityGround = */ CFGDOUBLE("sigma_ground"),
+        /* sigmaSky             = */ CFGDOUBLE("sigma_sky") // Should be small compared to sigma_dis
     };
 
     EstimatedCameraParameters estimated_camera_parameters = {
-        /* sigmaCameraTilt   = */ CFG("sigma_tilt") DEGREE,
-        /* sigmaCameraHeight = */ CFG("sigma_height")
+        /* sigmaCameraTilt   = */ CFGDOUBLE("sigma_tilt") DEGREE,
+        /* sigmaCameraHeight = */ CFGDOUBLE("sigma_height")
     };
 
-    const float max_dis_display = CFG("max_dis_disparity");
-    const float disparity_sky = CFG("sky_disparity");
+    const float max_dis_display = CFGDOUBLE("max_dis_disparity");
+    const float disparity_sky = CFGDOUBLE("sky_disparity");
 
 
     std::cout << left_video_path << std::endl;
